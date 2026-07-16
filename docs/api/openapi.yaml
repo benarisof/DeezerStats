@@ -1,0 +1,610 @@
+openapi: 3.0.3
+info:
+  title: Deezer Stats API
+  description: >
+    Contrat d'API pour la consultation des statistiques d'écoute Deezer
+    (tops, historique, détail album/artiste, recherche, import de fichier).
+    Ce document est la source de vérité durant les phases 1 à 10 : le frontend
+    peut être développé contre un mock généré depuis ce fichier pendant que
+    le backend implémente réellement chaque endpoint.
+  version: "0.1.0"
+servers:
+  - url: http://localhost:5231/api/v1
+    description: Environnement de développement local
+  - url: https://api.deezerstats.example.com/v1
+    description: Environnement de référence (à ajuster en phase 12)
+
+tags:
+  - name: Auth
+  - name: Stats
+  - name: Albums
+  - name: Artists
+  - name: Tracks
+  - name: History
+  - name: Search
+  - name: Imports
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      operationId: registerUser
+      security: []
+      summary: Créer un compte utilisateur
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201":
+          description: Compte créé
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "409":
+          description: Email déjà utilisé
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      operationId: loginUser
+      security: []
+      summary: Se connecter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200":
+          description: Connexion réussie
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          description: Identifiants invalides
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshToken
+      security: []
+      summary: Rafraîchir le access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "200":
+          description: Nouveau couple de tokens
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AuthTokens" }
+        "401":
+          description: Refresh token invalide ou expiré
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutUser
+      summary: Révoquer le refresh token courant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RefreshRequest" }
+      responses:
+        "204": { description: Déconnexion effectuée }
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      operationId: getCurrentUser
+      summary: Profil de l'utilisateur connecté (restauration de session au chargement du front)
+      responses:
+        "200":
+          description: Profil courant
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UserProfile" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /stats/home:
+    get:
+      tags: [Stats]
+      operationId: getHomeStats
+      summary: Top 10 albums / artistes / morceaux pour la page d'accueil
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+      responses:
+        "200":
+          description: Statistiques de la page d'accueil
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HomeStatsResponse" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /albums/top:
+    get:
+      tags: [Albums]
+      operationId: getTopAlbums
+      summary: Top 100 albums les plus écoutés (paginé)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Page du top albums
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumListPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /artists/top:
+    get:
+      tags: [Artists]
+      operationId: getTopArtists
+      summary: Top 100 artistes les plus écoutés (paginé)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Page du top artistes
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtistListPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /tracks/top:
+    get:
+      tags: [Tracks]
+      operationId: getTopTracks
+      summary: Top 100 morceaux les plus écoutés (paginé)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Page du top morceaux
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TrackListPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /history:
+    get:
+      tags: [History]
+      operationId: getHistory
+      summary: 100 derniers morceaux écoutés (paginé)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Page d'historique
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/HistoryPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /albums/{albumId}:
+    get:
+      tags: [Albums]
+      operationId: getAlbumDetail
+      summary: Détail d'un album (page item)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - name: albumId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Détail album
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AlbumDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /artists/{artistId}:
+    get:
+      tags: [Artists]
+      operationId: getArtistDetail
+      summary: Détail d'un artiste (page item)
+      parameters:
+        - $ref: "#/components/parameters/FromDate"
+        - $ref: "#/components/parameters/ToDate"
+        - name: artistId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Détail artiste
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ArtistDetail" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /search/suggestions:
+    get:
+      tags: [Search]
+      operationId: getSearchSuggestions
+      summary: Suggestions d'autocomplétion (déclenché côté front à partir de 4 caractères)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Doit contenir au moins 4 caractères
+          schema: { type: string, minLength: 4 }
+      responses:
+        "200":
+          description: Liste de suggestions (albums / artistes / morceaux)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/SearchSuggestion" }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /search:
+    get:
+      tags: [Search]
+      operationId: searchCatalog
+      summary: Recherche complète (clic sur suggestion ou touche Entrée)
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - $ref: "#/components/parameters/Page"
+        - $ref: "#/components/parameters/PageSize"
+      responses:
+        "200":
+          description: Résultats de recherche
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SearchResultsPage" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /imports:
+    post:
+      tags: [Imports]
+      operationId: importListeningHistory
+      summary: Charger le fichier Excel mensuel d'historique d'écoute
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        "200":
+          description: >
+            Rapport d'import. Les lignes déjà présentes en base sont ignorées.
+            L'enrichissement Deezer (cover, durée, date de sortie) se fait en
+            tâche de fond après cette réponse et n'est donc pas garanti immédiat.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ImportReport" }
+        "400":
+          description: Fichier illisible ou colonnes attendues manquantes
+          content:
+            application/problem+json:
+              schema: { $ref: "#/components/schemas/ProblemDetails" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    FromDate:
+      name: from
+      in: query
+      required: false
+      description: Début de la plage de dates (incluse). Absent = depuis le début.
+      schema: { type: string, format: date }
+    ToDate:
+      name: to
+      in: query
+      required: false
+      description: Fin de la plage de dates (incluse). Absent = jusqu'à aujourd'hui.
+      schema: { type: string, format: date }
+    Page:
+      name: page
+      in: query
+      required: false
+      schema: { type: integer, minimum: 1, default: 1 }
+    PageSize:
+      name: pageSize
+      in: query
+      required: false
+      description: Le total est plafonné par la règle métier (100 pour les tops et l'historique).
+      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+
+  responses:
+    Unauthorized:
+      description: Non authentifié ou token invalide/expiré
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+    ValidationError:
+      description: Requête invalide
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/ProblemDetails" }
+
+  schemas:
+    ProblemDetails:
+      type: object
+      description: Format d'erreur RFC 7807, standard ASP.NET Core.
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        traceId: { type: string }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password, minLength: 8 }
+        displayName: { type: string }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken: { type: string }
+
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresInSeconds: { type: integer, example: 900 }
+
+    UserProfile:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        displayName: { type: string }
+
+    AlbumSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string, example: "Cest la vie" }
+        artistName: { type: string, example: "Loïc" }
+        coverUrl: { type: string, format: uri, nullable: true }
+        playCount: { type: integer, example: 1284 }
+
+    ArtistSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "The Weeknd" }
+        coverUrl: { type: string, format: uri, nullable: true }
+        playCount: { type: integer }
+
+    TrackSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        artistName: { type: string }
+        albumTitle: { type: string }
+        coverUrl: { type: string, format: uri, nullable: true }
+        playCount: { type: integer }
+
+    HistoryEntry:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        trackId: { type: string, format: uuid }
+        title: { type: string }
+        artistName: { type: string }
+        albumTitle: { type: string }
+        coverUrl: { type: string, format: uri, nullable: true }
+        listenedAt: { type: string, format: date-time }
+
+    HomeStatsResponse:
+      type: object
+      properties:
+        topAlbums:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/AlbumSummary" }
+        topArtists:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/ArtistSummary" }
+        topTracks:
+          type: array
+          maxItems: 10
+          items: { $ref: "#/components/schemas/TrackSummary" }
+
+    AlbumListPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/AlbumSummary" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer, maximum: 100 }
+        totalPages: { type: integer }
+
+    ArtistListPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/ArtistSummary" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer, maximum: 100 }
+        totalPages: { type: integer }
+
+    TrackListPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/TrackSummary" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer, maximum: 100 }
+        totalPages: { type: integer }
+
+    HistoryPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/HistoryEntry" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer, maximum: 100 }
+        totalPages: { type: integer }
+
+    AlbumTrackItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        playCount: { type: integer }
+
+    AlbumDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        artistId: { type: string, format: uuid }
+        artistName: { type: string }
+        coverUrl: { type: string, format: uri, nullable: true }
+        durationSeconds: { type: integer, nullable: true }
+        releaseDate: { type: string, format: date, nullable: true }
+        totalListeningDurationHours: { type: number, format: float }
+        totalPlayCount: { type: integer }
+        tracks:
+          type: array
+          description: Triés par nombre d'écoutes décroissant
+          items: { $ref: "#/components/schemas/AlbumTrackItem" }
+
+    ArtistTrackItem:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        albumTitle: { type: string }
+        playCount: { type: integer }
+
+    ArtistDetail:
+      type: object
+      description: >
+        Adapté par rapport au cahier des charges initial : les champs "durée" et
+        "date de sortie" d'un album n'ont pas de sens pour un artiste. Remplacés
+        par des agrégats propres à l'artiste (voir ADR ticket 1.1).
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        coverUrl: { type: string, format: uri, nullable: true }
+        distinctAlbumsCount: { type: integer }
+        distinctTracksCount: { type: integer }
+        totalListeningDurationHours: { type: number, format: float }
+        totalPlayCount: { type: integer }
+        tracks:
+          type: array
+          description: Triés par nombre d'écoutes décroissant
+          items: { $ref: "#/components/schemas/ArtistTrackItem" }
+
+    SearchSuggestion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, enum: [album, artist, track] }
+        label: { type: string }
+        subtitle: { type: string, nullable: true, description: "Ex. nom de l'artiste pour un album/morceau" }
+        coverUrl: { type: string, format: uri, nullable: true }
+
+    SearchResultsPage:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: "#/components/schemas/SearchSuggestion" }
+        page: { type: integer }
+        pageSize: { type: integer }
+        totalItems: { type: integer }
+        totalPages: { type: integer }
+
+    ImportRowError:
+      type: object
+      properties:
+        rowNumber: { type: integer }
+        message: { type: string }
+
+    ImportReport:
+      type: object
+      properties:
+        importedCount: { type: integer, example: 812 }
+        skippedCount: { type: integer, example: 45, description: "Lignes déjà présentes en base, ignorées" }
+        errorCount: { type: integer, example: 0 }
+        errors:
+          type: array
+          items: { $ref: "#/components/schemas/ImportRowError" }
