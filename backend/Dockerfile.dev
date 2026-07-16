@@ -1,0 +1,12 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+WORKDIR /src
+
+EXPOSE 8080
+
+ENV ASPNETCORE_URLS=http://+:8080
+# Nécessaire pour que dotnet watch détecte fiablement les changements
+# de fichiers sur un volume monté depuis l'hôte (Docker Desktop Mac/Windows).
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+
+ENTRYPOINT ["dotnet", "watch", "--project", "src/DeezerStats.Api", "run", "--no-launch-profile"]

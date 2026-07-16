@@ -1,0 +1,95 @@
+name: deezer-stats
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-deezerstats}
+      POSTGRES_USER: ${POSTGRES_USER:-deezerstats}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-deezerstats_dev_only}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-deezerstats}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.48
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY:-dev_master_key_change_me}
+      MEILI_ENV: development
+    ports:
+      - "${MEILISEARCH_PORT:-7700}:7700"
+    volumes:
+      - meili_data:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:7700/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      meilisearch:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-deezerstats};Username=${POSTGRES_USER:-deezerstats};Password=${POSTGRES_PASSWORD:-deezerstats_dev_only}"
+      Meilisearch__Url: "http://meilisearch:7700"
+      Meilisearch__MasterKey: ${MEILI_MASTER_KEY:-dev_master_key_change_me}
+      Jwt__Secret: ${JWT_SECRET:-dev_only_change_me_in_every_other_environment}
+    ports:
+      - "${API_PORT:-5231}:8080"
+    volumes:
+      - ./backend:/src
+      - api_nuget_cache:/root/.nuget/packages
+      - api_bin:/src/src/DeezerStats.Api/bin
+      - api_obj:/src/src/DeezerStats.Api/obj
+      - domain_bin:/src/src/DeezerStats.Domain/bin
+      - domain_obj:/src/src/DeezerStats.Domain/obj
+      - application_bin:/src/src/DeezerStats.Application/bin
+      - application_obj:/src/src/DeezerStats.Application/obj
+      - infrastructure_bin:/src/src/DeezerStats.Infrastructure/bin
+      - infrastructure_obj:/src/src/DeezerStats.Infrastructure/obj
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:5231/api/v1}
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - frontend_node_modules:/app/node_modules
+
+volumes:
+  postgres_data:
+  meili_data:
+  api_nuget_cache:
+  api_bin:
+  api_obj:
+  domain_bin:
+  domain_obj:
+  application_bin:
+  application_obj:
+  infrastructure_bin:
+  infrastructure_obj:
+  frontend_node_modules:
