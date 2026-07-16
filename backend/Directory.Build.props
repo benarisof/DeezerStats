@@ -1,0 +1,22 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Active les analyzers .NET intégrés et fait respecter le style de .editorconfig dès le build,
+         pas seulement dans l'IDE. C'est ce qui rend les conventions "réelles" plutôt que juste indicatives. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Vérifie la version la plus récente sur nuget.org avant restore : ce package est
+         historiquement versionné en beta depuis plusieurs années, c'est normal. -->
+    <PackageReference Include="StyleCop.Analyzers" Version="1.2.0-beta.556" PrivateAssets="all" />
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)stylecop.json" Link="stylecop.json" />
+  </ItemGroup>
+
+</Project>

@@ -1,6 +1,5 @@
-﻿namespace DeezerStats.Domain;
+namespace DeezerStats.Domain;
 
 public class Class1
 {
-
 }

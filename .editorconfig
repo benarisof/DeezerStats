@@ -1,0 +1,77 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+
+# ============================================================
+# Backend — C# / .NET
+# ============================================================
+[*.cs]
+indent_size = 4
+
+# Style d'accolades .NET par défaut (Allman)
+csharp_new_line_before_open_brace = all
+
+# Usings
+dotnet_sort_system_directives_first = true
+csharp_using_directive_placement = outside_namespace:warning
+
+# Préférences de langage
+csharp_style_var_for_built_in_types = true:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_prefer_braces = true:warning
+dotnet_style_readonly_field = true:warning
+dotnet_style_require_accessibility_modifiers = always:warning
+dotnet_style_qualification_for_field = false:suggestion
+
+# Nullable : avertissement, pas une erreur bloquante au build
+dotnet_diagnostic.CS8600.severity = warning
+dotnet_diagnostic.CS8602.severity = warning
+dotnet_diagnostic.CS8618.severity = warning
+
+# Conventions de nommage
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbol
+dotnet_naming_rule.interfaces_start_with_i.style = i_prefix_style
+dotnet_naming_symbols.interface_symbol.applicable_kinds = interface
+dotnet_naming_style.i_prefix_style.required_prefix = I
+dotnet_naming_style.i_prefix_style.capitalization = pascal_case
+
+dotnet_naming_rule.private_fields_underscore_camel.severity = warning
+dotnet_naming_rule.private_fields_underscore_camel.symbols = private_field_symbol
+dotnet_naming_rule.private_fields_underscore_camel.style = underscore_camel_style
+dotnet_naming_symbols.private_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbol.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_style.required_prefix = _
+dotnet_naming_style.underscore_camel_style.capitalization = camel_case
+
+# StyleCop — désactivations volontaires pour rester pragmatique
+dotnet_diagnostic.SA1600.severity = none   # Elements must be documented : trop bruyant en phase de dev active
+dotnet_diagnostic.SA1633.severity = none   # File header : pas de politique de header de fichier sur ce projet
+dotnet_diagnostic.SA1101.severity = none   # Prefix local calls with this : incompatible avec dotnet_style_qualification_for_field ci-dessus
+dotnet_diagnostic.SA1309.severity = none   # Field names must not begin with underscore : on choisit _camelCase (cf. règle de nommage ci-dessus)
+dotnet_diagnostic.SA0001.severity = none   # rappel de la désactivation de SA1600, déjà assumée
+# ============================================================
+# Frontend — TypeScript / React
+# ============================================================
+[*.{ts,tsx,js,jsx,json}]
+indent_size = 2
+
+[*.{css,html}]
+indent_size = 2
+
+# ============================================================
+# Config / doc
+# ============================================================
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml}]
+indent_size = 2

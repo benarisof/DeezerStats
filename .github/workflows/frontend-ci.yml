@@ -35,6 +35,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Vérifier le formatage (Prettier)
+        run: npm run format:check
+
       - name: Build
         run: npm run build
         env:

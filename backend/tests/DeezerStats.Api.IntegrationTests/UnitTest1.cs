@@ -1,10 +1,9 @@
-﻿namespace DeezerStats.Api.IntegrationTests;
+namespace DeezerStats.Api.IntegrationTests;
 
 public class UnitTest1
 {
     [Fact]
     public void Test1()
     {
-
     }
 }

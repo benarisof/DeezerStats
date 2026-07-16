@@ -1,10 +1,9 @@
-﻿namespace DeezerStats.Domain.UnitTests;
+namespace DeezerStats.Domain.UnitTests;
 
 public class UnitTest1
 {
     [Fact]
     public void Test1()
     {
-
     }
 }

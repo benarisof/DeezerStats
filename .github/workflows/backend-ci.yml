@@ -30,6 +30,9 @@ jobs:
       - name: Restore
         run: dotnet restore DeezerStats.slnx
 
+      - name: Vérifier le formatage et les conventions (dotnet format)
+        run: dotnet format DeezerStats.slnx --verify-no-changes --verbosity diagnostic
+
       - name: Build
         run: dotnet build DeezerStats.slnx --no-restore --configuration Release
 
