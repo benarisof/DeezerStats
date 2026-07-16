@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/DeezerStats.Api/DeezerStats.Api.csproj" />
+    <Project Path="src/DeezerStats.Application/DeezerStats.Application.csproj" />
+    <Project Path="src/DeezerStats.Domain/DeezerStats.Domain.csproj" />
+    <Project Path="src/DeezerStats.Infrastructure/DeezerStats.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DeezerStats.Api.IntegrationTests/DeezerStats.Api.IntegrationTests.csproj" />
+    <Project Path="tests/DeezerStats.Application.UnitTests/DeezerStats.Application.UnitTests.csproj" />
+    <Project Path="tests/DeezerStats.Domain.UnitTests/DeezerStats.Domain.UnitTests.csproj" />
+    <Project Path="tests/DeezerStats.Infrastructure.IntegrationTests/DeezerStats.Infrastructure.IntegrationTests.csproj" />
+  </Folder>
+</Solution>
