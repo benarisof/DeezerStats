@@ -35,7 +35,7 @@ jobs:
 
       - name: Test
         run: >
-          dotnet test DeezerStats.sln
+          dotnet test DeezerStats.slnx
           --no-build
           --configuration Release
           --logger "trx;LogFileName=test-results.trx"
