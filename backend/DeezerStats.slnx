@@ -9,6 +9,6 @@
     <Project Path="tests/DeezerStats.Api.IntegrationTests/DeezerStats.Api.IntegrationTests.csproj" />
     <Project Path="tests/DeezerStats.Application.UnitTests/DeezerStats.Application.UnitTests.csproj" />
     <Project Path="tests/DeezerStats.Domain.UnitTests/DeezerStats.Domain.UnitTests.csproj" />
-    <Project Path="tests/DeezerStats.Infrastructure.IntegrationTests/DeezerStats.Infrastructure.IntegrationTests.csproj" />
+    <Project Path="tests/DeezerStats.Infrastructure.IntegrationTests/DeezerStats.Infrastructure.UnitTests.csproj" />
   </Folder>
 </Solution>

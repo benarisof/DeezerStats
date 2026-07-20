@@ -2,7 +2,7 @@ using ClosedXML.Excel;
 using DeezerStats.Infrastructure.Adapter.Excel;
 using FluentAssertions;
 
-namespace DeezerStats.Infrastructure.IntegrationTests.Adapters
+namespace DeezerStats.Infrastructure.UnitTests.Adapters
 {
     public class ClosedXmlExcelParserTests
     {

@@ -5,7 +5,7 @@ using DeezerStats.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 
-namespace DeezerStats.Infrastructure.IntegrationTests.Repositories
+namespace DeezerStats.Infrastructure.UnitTests.Repositories
 {
     public class TrackRepositoryTests
     {
