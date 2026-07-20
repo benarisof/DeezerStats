@@ -39,15 +39,17 @@ namespace DeezerStats.Domain.Aggregates.ListeningEventAggregate
 
         private ListeningEvent()
         {
+            Isrc = null!;
+            ListeningDuration = null!;
         }
 
         public Guid UserId { get; }
 
         public Guid TrackId { get; }
 
-        public required Isrc Isrc { get; init; }
+        public Isrc Isrc { get; init; }
 
-        public required Duration ListeningDuration { get; init; }
+        public Duration ListeningDuration { get; init; }
 
         public DateTime ListenedAt { get; }
     }
