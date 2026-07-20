@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.ValueObjects;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Repositories;

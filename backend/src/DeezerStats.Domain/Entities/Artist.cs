@@ -1,6 +1,6 @@
 using DeezerStats.Domain.SeedWork;
 
-namespace DeezerStats.Domain.Aggregates.ArtistAggregate
+namespace DeezerStats.Domain.Entities
 {
     public class Artist : Entity<Guid>, IAggregateRoot
     {

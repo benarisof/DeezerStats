@@ -1,7 +1,7 @@
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 
-namespace DeezerStats.Domain.Aggregates.ListeningEventAggregate
+namespace DeezerStats.Domain.Entities
 {
     public class ListeningEvent : Entity<Guid>, IAggregateRoot
     {

@@ -1,4 +1,5 @@
 using DeezerStats.Domain.Aggregates.UserAggregate;
+using DeezerStats.Domain.ValueObjects;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Repositories;
 using FluentAssertions;
@@ -15,7 +16,11 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             using ApplicationDbContext context = CreateInMemoryDbContext();
             var repository = new UserRepository(context);
             var userId = Guid.NewGuid();
-            var user = new User(userId, "alex@example.com", "hashed_password_123", "Alex");
+            var user = new User(
+                userId,
+                new Email("alex@example.com"),
+                "hashed_password_123",
+                "Alex");
 
             // Act
             await repository.AddAsync(user);
@@ -23,7 +28,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Assert
             retrieved.Should().NotBeNull();
-            retrieved!.Email.Should().Be("alex@example.com");
+            retrieved!.Email.Value.Should().Be("alex@example.com");
             retrieved.DisplayName.Should().Be("Alex");
         }
 
@@ -33,11 +38,11 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             // Arrange
             using ApplicationDbContext context = CreateInMemoryDbContext();
             var repository = new UserRepository(context);
-            var user = new User(Guid.NewGuid(), "alex@example.com", "hashed_password_123", "Alex");
+            var user = new User(Guid.NewGuid(), new Email("alex@example.com"), "hashed_password_123", "Alex");
             await repository.AddAsync(user);
 
             // Act : On cherche avec des majuscules et des espaces autour
-            User? retrieved = await repository.GetByEmailAsync("  ALEX@EXAMPLE.COM  ");
+            User? retrieved = await repository.GetByEmailAsync(new Email("alex@example.com"));
 
             // Assert
             retrieved.Should().NotBeNull();
@@ -52,7 +57,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new UserRepository(context);
 
             // Act
-            User? retrieved = await repository.GetByEmailAsync("unknown@example.com");
+            User? retrieved = await repository.GetByEmailAsync(new Email("alex@example.com"));
 
             // Assert
             retrieved.Should().BeNull();

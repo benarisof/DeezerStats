@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Domain.Aggregates.ArtistAggregate;
+using DeezerStats.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeezerStats.Infrastructure.Persistence.Repositories

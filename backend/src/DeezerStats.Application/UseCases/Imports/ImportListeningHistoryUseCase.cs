@@ -1,10 +1,8 @@
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Domain.Aggregates.AlbumAggregate;
-using DeezerStats.Domain.Aggregates.ArtistAggregate;
-using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
+using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 

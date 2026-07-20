@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
+using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

@@ -1,16 +1,18 @@
 using DeezerStats.Domain.SeedWork;
+using DeezerStats.Domain.ValueObjects;
 
 namespace DeezerStats.Domain.Aggregates.UserAggregate
 {
     public class User : Entity<Guid>, IAggregateRoot
     {
-        public User(Guid id, string email, string passwordHash, string displayName)
+        public User(
+            Guid id,
+            Email email,
+            string passwordHash,
+            string displayName)
             : base(id)
         {
-            if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
-            {
-                throw new DomainException("L'adresse email est invalide.");
-            }
+            Email = email ?? throw new ArgumentNullException(nameof(email));
 
             if (string.IsNullOrWhiteSpace(passwordHash))
             {
@@ -22,7 +24,6 @@ namespace DeezerStats.Domain.Aggregates.UserAggregate
                 throw new DomainException("Le nom d'affichage est obligatoire.");
             }
 
-            Email = email.Trim().ToLowerInvariant();
             PasswordHash = passwordHash;
             DisplayName = displayName.Trim();
             CreatedAt = DateTime.UtcNow;
@@ -32,7 +33,7 @@ namespace DeezerStats.Domain.Aggregates.UserAggregate
         {
         }
 
-        public string Email { get; private set; } = default!;
+        public Email Email { get; private set; } = default!;
 
         public string PasswordHash { get; private set; } = default!;
 
@@ -48,7 +49,8 @@ namespace DeezerStats.Domain.Aggregates.UserAggregate
         {
             if (string.IsNullOrWhiteSpace(displayName))
             {
-                throw new DomainException("Le nom d'affichage ne peut pas être vide.");
+                throw new DomainException(
+                    "Le nom d'affichage ne peut pas être vide.");
             }
 
             DisplayName = displayName.Trim();

@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Entities;
 
 namespace DeezerStats.Application.Ports.Repositories
 {

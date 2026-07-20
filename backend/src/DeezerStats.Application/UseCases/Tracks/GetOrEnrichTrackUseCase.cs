@@ -35,7 +35,7 @@ namespace DeezerStats.Application.UseCases.Tracks
                 // 4. Mutation de l'agrégat dans le domaine
                 track.Enrich(deezerMetadata.Duration, deezerMetadata.CoverUrl);
 
-                // 5. Mise en cache dans PostgreSQL
+                // 5. Persistence des métadonnées dans PostgreSQL
                 await _trackRepository.UpdateAsync(track, ct);
             }
 
