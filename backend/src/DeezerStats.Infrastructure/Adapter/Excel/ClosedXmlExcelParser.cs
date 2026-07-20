@@ -1,0 +1,49 @@
+using ClosedXML.Excel;
+using DeezerStats.Application.Ports.ExternalServices.Excel;
+using DeezerStats.Domain.SeedWork;
+
+namespace DeezerStats.Infrastructure.Adapter.Excel
+{
+    public class ClosedXmlExcelParser : IExcelParserPort
+    {
+        private const string _targetSheetKeyword = "listeningHistory";
+
+        public Task<IEnumerable<ExcelListeningRow>> ParseHistoryAsync(Stream fileStream, CancellationToken ct = default)
+        {
+            var result = new List<ExcelListeningRow>();
+
+            using var workbook = new XLWorkbook(fileStream);
+
+            // 1. Recherche de la feuille dont le nom contient "listeningHistory" (insensible à la casse)
+            IXLWorksheet? worksheet = workbook.Worksheets
+                .FirstOrDefault(w => w.Name.Contains(_targetSheetKeyword, StringComparison.OrdinalIgnoreCase));
+
+            // 2. Repli : Si aucune feuille ne correspond, on prend la première par défaut (ou on lève une exception)
+            worksheet ??= workbook.Worksheets.FirstOrDefault()
+                ?? throw new DomainException("Le fichier Excel ne contient aucune feuille de calcul.");
+
+            IEnumerable<IXLRow> rows = worksheet.RowsUsed().Skip(1); // Sauter la ligne d'en-tête
+
+            foreach (IXLRow row in rows)
+            {
+                // Vérification que la ligne n'est pas vide
+                if (row.IsEmpty())
+                {
+                    continue;
+                }
+
+                var trackTitle = row.Cell(1).GetValue<string>();
+                var artistName = row.Cell(2).GetValue<string>();
+                var albumTitle = row.Cell(3).GetValue<string>();
+                var isrc = row.Cell(4).GetValue<string>();
+                var durationInSeconds = row.Cell(5).GetValue<int>();
+                DateTime listenedAt = row.Cell(6).GetValue<DateTime>();
+
+                result.Add(new ExcelListeningRow(
+                    trackTitle, artistName, albumTitle, isrc, durationInSeconds, listenedAt));
+            }
+
+            return Task.FromResult<IEnumerable<ExcelListeningRow>>(result);
+        }
+    }
+}

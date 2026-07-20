@@ -1,0 +1,25 @@
+using DeezerStats.Application.Ports.Repositories;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using Microsoft.EntityFrameworkCore;
+
+namespace DeezerStats.Infrastructure.Persistence.Repositories
+{
+    public class AlbumRepository(ApplicationDbContext context) : IAlbumRepository
+    {
+        private readonly ApplicationDbContext _context = context;
+
+        public async Task<Album?> GetByIdAsync(Guid id, CancellationToken ct = default) => await _context.Albums.FirstOrDefaultAsync(a => a.Id == id, ct);
+
+        public async Task AddAsync(Album album, CancellationToken ct = default)
+        {
+            await _context.Albums.AddAsync(album, ct);
+            await _context.SaveChangesAsync(ct);
+        }
+
+        public async Task UpdateAsync(Album album, CancellationToken ct = default)
+        {
+            _context.Albums.Update(album);
+            await _context.SaveChangesAsync(ct);
+        }
+    }
+}

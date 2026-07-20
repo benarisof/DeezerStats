@@ -1,23 +1,24 @@
+using DeezerStats.Infrastructure;
+
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// 1. Contrôleurs & OpenAPI
 builder.Services.AddControllers();
-
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// 2. Injection de toute la couche Infrastructure (EF Core, Repositories, Adapters)
+builder.Services.AddInfrastructure(builder.Configuration);
 
 WebApplication app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure le pipeline HTTP
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
