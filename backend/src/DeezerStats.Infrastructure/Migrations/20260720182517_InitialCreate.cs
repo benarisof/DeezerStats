@@ -1,4 +1,3 @@
-﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -20,7 +19,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     ArtistId = table.Column<Guid>(type: "uuid", nullable: false),
                     CoverUrl = table.Column<string>(type: "text", nullable: true),
                     ReleaseDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    Duration = table.Column<int>(type: "integer", nullable: true)
+                    Duration = table.Column<int>(type: "integer", nullable: true),
                 },
                 constraints: table =>
                 {
@@ -33,7 +32,7 @@ namespace DeezerStats.Infrastructure.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
-                    CoverUrl = table.Column<string>(type: "text", nullable: true)
+                    CoverUrl = table.Column<string>(type: "text", nullable: true),
                 },
                 constraints: table =>
                 {
@@ -49,7 +48,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     TrackId = table.Column<Guid>(type: "uuid", nullable: false),
                     Isrc = table.Column<string>(type: "character varying(12)", maxLength: 12, nullable: false),
                     ListeningDuration = table.Column<int>(type: "integer", nullable: false),
-                    ListenedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    ListenedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -64,7 +63,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     Email = table.Column<string>(type: "text", nullable: false),
                     PasswordHash = table.Column<string>(type: "text", nullable: false),
                     DisplayName = table.Column<string>(type: "text", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                 },
                 constraints: table =>
                 {
@@ -81,7 +80,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     ArtistId = table.Column<Guid>(type: "uuid", nullable: false),
                     AlbumId = table.Column<Guid>(type: "uuid", nullable: false),
                     Duration = table.Column<int>(type: "integer", nullable: true),
-                    CoverUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true)
+                    CoverUrl = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
                 },
                 constraints: table =>
                 {
@@ -103,7 +102,7 @@ namespace DeezerStats.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_listening_events_UserId_Isrc_ListenedAt",
                 table: "listening_events",
-                columns: new[] { "UserId", "Isrc", "ListenedAt" },
+                columns: ["UserId", "Isrc", "ListenedAt"],
                 unique: true);
 
             migrationBuilder.CreateIndex(
