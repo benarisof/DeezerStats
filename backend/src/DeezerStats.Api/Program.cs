@@ -1,3 +1,4 @@
+using DeezerStats.Api.Middleware;
 using DeezerStats.Infrastructure;
 
 WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,7 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
