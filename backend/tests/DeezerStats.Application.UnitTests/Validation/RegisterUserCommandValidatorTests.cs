@@ -1,3 +1,4 @@
+using DeezerStats.Application.UseCases.Users;
 using DeezerStats.Application.Validation.Validators;
 using FluentValidation.TestHelper;
 

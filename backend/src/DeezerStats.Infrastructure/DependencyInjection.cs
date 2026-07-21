@@ -1,6 +1,8 @@
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Infrastructure.Adapter.Excel;
+using DeezerStats.Application.Ports.Security;
+using DeezerStats.Infrastructure.Adapters.Excel;
+using DeezerStats.Infrastructure.Adapters.Security;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -27,6 +29,11 @@ namespace DeezerStats.Infrastructure
 
             // Adapteurs
             services.AddScoped<IExcelParserPort, ClosedXmlExcelParser>();
+            services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
+
+            // Configuration de JwtSettings
+            services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+            services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
 
             return services;
         }

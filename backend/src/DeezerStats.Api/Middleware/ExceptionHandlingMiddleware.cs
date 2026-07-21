@@ -64,6 +64,13 @@ namespace DeezerStats.Api.Middleware
                     Detail = notFoundEx.Message,
                 },
 
+                UnauthorizedAccessException unauthEx => new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.Unauthorized,
+                    Title = "Non autorisé",
+                    Detail = unauthEx.Message,
+                },
+
                 _ => new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.InternalServerError,

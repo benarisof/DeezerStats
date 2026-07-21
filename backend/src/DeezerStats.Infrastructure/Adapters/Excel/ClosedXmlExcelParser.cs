@@ -2,7 +2,7 @@ using ClosedXML.Excel;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Domain.SeedWork;
 
-namespace DeezerStats.Infrastructure.Adapter.Excel
+namespace DeezerStats.Infrastructure.Adapters.Excel
 {
     public class ClosedXmlExcelParser : IExcelParserPort
     {

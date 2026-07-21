@@ -1,3 +1,4 @@
+using DeezerStats.Application.UseCases.Users;
 using FluentValidation;
 
 namespace DeezerStats.Application.Validation.Validators

@@ -1,5 +1,5 @@
 using ClosedXML.Excel;
-using DeezerStats.Infrastructure.Adapter.Excel;
+using DeezerStats.Infrastructure.Adapters.Excel;
 using FluentAssertions;
 
 namespace DeezerStats.Infrastructure.UnitTests.Adapters
