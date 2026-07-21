@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -26,7 +26,7 @@ namespace DeezerStats.Infrastructure.Migrations
             migrationBuilder.CreateIndex(
                 name: "IX_listening_events_UserId_TrackId_ListenedAt",
                 table: "listening_events",
-                columns: new[] { "UserId", "TrackId", "ListenedAt" },
+                columns: ["UserId", "TrackId", "ListenedAt"],
                 unique: true);
 
             migrationBuilder.AddForeignKey(
@@ -59,12 +59,12 @@ namespace DeezerStats.Infrastructure.Migrations
                 type: "character varying(12)",
                 maxLength: 12,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: string.Empty);
 
             migrationBuilder.CreateIndex(
                 name: "IX_listening_events_UserId_Isrc_ListenedAt",
                 table: "listening_events",
-                columns: new[] { "UserId", "Isrc", "ListenedAt" },
+                columns: ["UserId", "Isrc", "ListenedAt"],
                 unique: true);
         }
     }
