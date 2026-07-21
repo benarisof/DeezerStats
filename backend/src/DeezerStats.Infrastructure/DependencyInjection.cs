@@ -9,6 +9,7 @@ using DeezerStats.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 namespace DeezerStats.Infrastructure
 {
@@ -28,8 +29,7 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IListeningEventRepository, ListeningEventRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
 
-            // Unit of Work : permet aux cas d'usage multi-agrégats (ex. import de l'historique
-            // d'écoute) de committer plusieurs repositories en une seule transaction atomique.
+            // Unit of Work : permet aux cas d'usage multi-agrégats
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             // Adapteurs
@@ -37,7 +37,10 @@ namespace DeezerStats.Infrastructure
             services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 
             // Configuration de JwtSettings
-            services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+            services.AddSingleton<IValidateOptions<JwtSettings>, JwtSettingsValidator>();
+            services.AddOptions<JwtSettings>()
+                .Bind(configuration.GetSection(JwtSettings.SectionName))
+                .ValidateOnStart();
             services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
 
             return services;
