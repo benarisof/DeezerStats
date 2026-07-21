@@ -22,13 +22,6 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
     {
         builder.ConfigureServices(services =>
         {
-            // AddDbContext<ApplicationDbContext>(UseNpgsql) dans AddInfrastructure enregistre à la
-            // fois DbContextOptions<ApplicationDbContext> ET un IDbContextOptionsConfiguration
-            // <ApplicationDbContext> distinct -- ce dernier est ACCUMULATIF (un second appel à
-            // AddDbContext ne le remplace pas, il s'ajoute). Sans le retirer aussi, EF Core finit
-            // par appliquer à la fois UseNpgsql et UseInMemoryDatabase à la même instance
-            // d'options, d'où l'erreur "Only a single database provider can be registered" au
-            // premier accès au DbContext.
             services.RemoveAll<DbContextOptions<ApplicationDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<ApplicationDbContext>>();
 

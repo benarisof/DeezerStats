@@ -14,7 +14,6 @@ namespace DeezerStats.Infrastructure.Adapters.Security
     /// </summary>
     public class JwtSettingsValidator : IValidateOptions<JwtSettings>
     {
-        // HMAC-SHA256 recommande une clé d'au moins 256 bits (32 caractères ASCII) pour rester sûr.
         private const int _minimumKeyLength = 32;
 
         public ValidateOptionsResult Validate(string? name, JwtSettings options)

@@ -44,9 +44,6 @@ public class ImportsController(IImportListeningHistoryUseCase importListeningHis
     {
         var subject = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
 
-        // Ne devrait jamais se produire derrière le FallbackPolicy (voir Program.cs) : un token JWT
-        // valide contient toujours ce claim (voir JwtAccessTokenGenerator). Une InvalidOperationException
-        // ici documente l'invariant plutôt que de laisser un Guid.Parse lever une FormatException opaque.
         if (!Guid.TryParse(subject, out Guid userId))
         {
             throw new InvalidOperationException(

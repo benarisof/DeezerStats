@@ -28,9 +28,6 @@ namespace DeezerStats.Application.UseCases.Users
             await _validator.ValidateAndThrowAsync(command, ct);
 
             var email = new Email(command.Email);
-
-            // AuthenticationFailedException (et non UnauthorizedAccessException) : voir
-            // AuthenticationFailedException.cs pour la justification de cette hiérarchie dédiée.
             User? user = await _userRepository
                 .GetByEmailAsync(email, ct) ?? throw new AuthenticationFailedException(
                     "Email ou mot de passe invalide.");

@@ -18,7 +18,7 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
 
         public async Task<IReadOnlyList<Artist>> GetByNamesAsync(IEnumerable<string> names, CancellationToken ct = default)
         {
-            string[] normalizedNames = names.Select(Artist.Normalize).Distinct().ToArray();
+            string[] normalizedNames = [.. names.Select(Artist.Normalize).Distinct()];
             if (normalizedNames.Length == 0)
             {
                 return [];
@@ -35,9 +35,6 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
             await _context.SaveChangesAsync(ct);
         }
 
-        public async Task AddRangeAsync(IEnumerable<Artist> artists, CancellationToken ct = default)
-        {
-            await _context.Artists.AddRangeAsync(artists, ct);
-        }
+        public async Task AddRangeAsync(IEnumerable<Artist> artists, CancellationToken ct = default) => await _context.Artists.AddRangeAsync(artists, ct);
     }
 }

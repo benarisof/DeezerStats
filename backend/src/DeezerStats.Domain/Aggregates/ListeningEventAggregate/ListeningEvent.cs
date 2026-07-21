@@ -42,10 +42,6 @@ namespace DeezerStats.Domain.Aggregates.ListeningEventAggregate
 
         public Guid UserId { get; }
 
-        // TrackId est l'unique source de vérité pour identifier le morceau écouté : on ne duplique
-        // plus l'Isrc ici (voir Track.Isrc). Une copie locale de l'Isrc n'était garantie d'aucune
-        // synchronisation si l'ISRC d'un Track était un jour corrigé (ex. erreur d'import initiale
-        // détectée après coup) — source de divergence silencieuse entre les deux tables.
         public Guid TrackId { get; }
 
         public Duration ListeningDuration { get; init; }

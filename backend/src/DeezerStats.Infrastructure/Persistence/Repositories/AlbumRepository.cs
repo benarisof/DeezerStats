@@ -20,7 +20,7 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
 
         public async Task<IReadOnlyList<Album>> GetByArtistIdsAsync(IEnumerable<Guid> artistIds, CancellationToken ct = default)
         {
-            Guid[] ids = artistIds.Distinct().ToArray();
+            Guid[] ids = [.. artistIds.Distinct()];
             if (ids.Length == 0)
             {
                 return [];
@@ -37,10 +37,7 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
             await _context.SaveChangesAsync(ct);
         }
 
-        public async Task AddRangeAsync(IEnumerable<Album> albums, CancellationToken ct = default)
-        {
-            await _context.Albums.AddRangeAsync(albums, ct);
-        }
+        public async Task AddRangeAsync(IEnumerable<Album> albums, CancellationToken ct = default) => await _context.Albums.AddRangeAsync(albums, ct);
 
         public async Task UpdateAsync(Album album, CancellationToken ct = default)
         {

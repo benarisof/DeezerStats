@@ -27,9 +27,6 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
                 listeningDuration: new Duration(200),
                 listenedAt: listenedAt);
 
-            // AddRangeAsync ne déclenche plus SaveChangesAsync lui-même (voir
-            // IListeningEventRepository.AddRangeAsync) : il faut committer explicitement, comme le
-            // ferait le Unit of Work dans le cas d'usage appelant.
             await repository.AddRangeAsync([listeningEvent]);
             await context.SaveChangesAsync();
 

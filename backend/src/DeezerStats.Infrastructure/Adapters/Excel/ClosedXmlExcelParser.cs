@@ -46,10 +46,6 @@ namespace DeezerStats.Infrastructure.Adapters.Excel
             return Task.FromResult<IEnumerable<ExcelListeningRow>>(result);
         }
 
-        // ClosedXML lève des types d'exception internes (format ZIP invalide, fichier corrompu,
-        // pas un .xlsx du tout...) quand le flux fourni n'est pas un classeur Excel exploitable.
-        // Sans cette traduction, une telle erreur atterrirait dans le catch-all du middleware (500),
-        // alors que le contrat OpenAPI documente un 400 "Fichier illisible" pour POST /imports.
         private static XLWorkbook OpenWorkbook(Stream fileStream)
         {
             try

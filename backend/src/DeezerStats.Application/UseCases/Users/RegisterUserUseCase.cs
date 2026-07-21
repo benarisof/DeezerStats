@@ -29,9 +29,6 @@ namespace DeezerStats.Application.UseCases.Users
 
             if (existingUser is not null)
             {
-                // ConflictException (et non DomainException) : ce cas doit être mappé en 409 par le
-                // middleware, conformément au contrat OpenAPI de /auth/register, et se distingue
-                // sémantiquement d'une simple erreur de validation (400).
                 throw new ConflictException(
                     "Un utilisateur existe déjà avec cette adresse email.");
             }

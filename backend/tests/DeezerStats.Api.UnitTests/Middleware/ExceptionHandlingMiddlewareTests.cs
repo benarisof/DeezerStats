@@ -151,9 +151,6 @@ namespace DeezerStats.Api.UnitTests.Middleware
             return JsonSerializer.Deserialize<ProblemDetails>(responseText, _jsonOptions);
         }
 
-        // Double de test pour ILogger<T> : NSubstitute peine à mocker Log<TState> à cause du
-        // type interne FormattedLogValues utilisé par les méthodes d'extension (LogError, etc.),
-        // donc une implémentation manuelle minimale est plus simple et plus fiable ici.
         private sealed class RecordingLogger : ILogger<ExceptionHandlingMiddleware>
         {
             public LogLevel? LastLogLevel { get; private set; }

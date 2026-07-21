@@ -8,14 +8,7 @@ public class ListeningEventRepository(ApplicationDbContext context) : IListening
 {
     private readonly ApplicationDbContext _context = context;
 
-    public async Task AddRangeAsync(IEnumerable<ListeningEvent> events, CancellationToken ct = default)
-    {
-        // NB : ne déclenche plus SaveChangesAsync (voir IListeningEventRepository.AddRangeAsync) :
-        // l'appelant (ex. ImportListeningHistoryUseCase) doit committer explicitement via
-        // IUnitOfWork, une fois que toutes les entités du lot (artistes, albums, morceaux, écoutes)
-        // ont été ajoutées au suivi du contexte, pour une persistance atomique en une seule fois.
-        await _context.ListeningEvents.AddRangeAsync(events, ct);
-    }
+    public async Task AddRangeAsync(IEnumerable<ListeningEvent> events, CancellationToken ct = default) => await _context.ListeningEvents.AddRangeAsync(events, ct);
 
     public async Task<bool> ExistsAsync(Guid userId, Guid trackId, DateTime listenedAt, CancellationToken ct = default)
     {
@@ -29,7 +22,7 @@ public class ListeningEventRepository(ApplicationDbContext context) : IListening
         IEnumerable<Guid> trackIds,
         CancellationToken ct = default)
     {
-        List<Guid> trackIdList = trackIds.Distinct().ToList();
+        List<Guid> trackIdList = [.. trackIds.Distinct()];
         if (trackIdList.Count == 0)
         {
             return new Dictionary<Guid, HashSet<DateTime>>();

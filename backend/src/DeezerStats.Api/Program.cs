@@ -23,9 +23,6 @@ builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
 // 4. CORS : le frontend (SPA React/Vite) est servi sur une origine différente de l'API
-// (ex. http://localhost:5173 vs http://localhost:5231), donc sans policy explicite le navigateur
-// bloque tous les appels. Les origines autorisées sont configurables via "Cors:AllowedOrigins"
-// (voir appsettings.*.json et docker-compose.yml) plutôt que codées en dur.
 var corsAllowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
 
 builder.Services.AddCors(options =>
@@ -38,31 +35,14 @@ builder.Services.AddCors(options =>
     });
 });
 
-// JWT : AddAuthentication/AddJwtBearer/FallbackPolicy sont désormais toujours configurés (plus de
-// "if (jwtSettings != null)"). Ce garde-fou pouvait laisser l'API démarrer sans AUCUNE
-// authentification si la section "Jwt" venait à manquer (déploiement incomplet, variable
-// d'environnement mal nommée — on a déjà eu ce problème avec Jwt__Secret vs Jwt__Key), sans la
-// moindre erreur au démarrage. La validation de la config (voir JwtSettingsValidator, enregistrée
-// dans AddInfrastructure via ValidateOnStart()) fait maintenant échouer le démarrage avec un
-// message explicite si elle est absente ou invalide.
 builder.Services.AddAuthentication(defaultScheme: JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer();
 
-// Configuration différée via IOptions<JwtSettings> : construite seulement au moment où
-// JwtBearerOptions est effectivement résolu, c'est-à-dire après que ValidateOnStart() a validé la
-// config au démarrage. Évite de tenter de construire une SymmetricSecurityKey à partir d'une clé
-// vide avant même que la validation n'ait eu la chance d'échouer proprement.
 builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
     .Configure<IOptions<JwtSettings>>((bearerOptions, jwtSettingsOptions) =>
     {
         JwtSettings jwtSettings = jwtSettingsOptions.Value;
 
-        // Désactive le remapping historique des claims JWT standards vers les URI ClaimTypes de
-        // .NET (ex. "sub" -> ClaimTypes.NameIdentifier) : ce comportement par défaut dépend du
-        // handler de token utilisé en interne et n'est pas garanti stable d'une version à l'autre.
-        // Avec MapInboundClaims = false, le claim "sub" (voir JwtAccessTokenGenerator) reste "sub"
-        // de façon déterministe, ce que les controllers peuvent lire sans ambiguïté (voir
-        // ImportsController.GetAuthenticatedUserId).
         bearerOptions.MapInboundClaims = false;
 
         bearerOptions.TokenValidationParameters = new TokenValidationParameters
@@ -78,10 +58,6 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
         };
     });
 
-// FallbackPolicy : protège TOUTES les routes par défaut (utilisateur authentifié requis), sauf
-// celles explicitement marquées [AllowAnonymous] (ex. AuthController). Sans ça, un futur
-// controller (stats, tops, historique...) resterait accessible anonymement s'il oublie
-// d'ajouter [Authorize] — le comportement par défaut d'ASP.NET Core est anonyme.
 builder.Services.AddAuthorizationBuilder()
         .SetFallbackPolicy(new AuthorizationPolicyBuilder()
         .RequireAuthenticatedUser()
@@ -89,10 +65,6 @@ builder.Services.AddAuthorizationBuilder()
 
 WebApplication app = builder.Build();
 
-// Garde-fou complémentaire à JwtSettingsValidator : celui-ci valide la forme de Jwt:Key (non vide,
-// longueur suffisante), mais ne peut pas savoir qu'une clé par ailleurs valide est simplement le
-// placeholder de développement d'appsettings.json. On refuse explicitement de démarrer avec cette
-// valeur en dehors de Development, pour ne jamais signer de tokens avec un secret public.
 if (!app.Environment.IsDevelopment())
 {
     JwtSettings jwtSettings = app.Services.GetRequiredService<IOptions<JwtSettings>>().Value;

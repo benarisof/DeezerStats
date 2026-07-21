@@ -16,8 +16,6 @@ namespace DeezerStats.Domain.ValueObjects
 
         public int Value { get; init; }
 
-        // Le record étant immuable, incrémenter retourne une NOUVELLE instance.
-        // Cela évite les effets de bord inattendus dans le domaine.
         public PlayCount Increment() => new(Value + 1);
     }
 }

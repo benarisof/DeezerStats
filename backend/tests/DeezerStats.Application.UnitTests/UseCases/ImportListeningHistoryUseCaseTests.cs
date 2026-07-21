@@ -34,8 +34,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 _albumRepository,
                 _unitOfWork);
 
-            // Par défaut, aucune donnée préexistante en base : chaque test ne surcharge que ce dont
-            // il a besoin pour rester lisible.
             _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Track>)[]);
             _listeningRepository.GetExistingListenedAtsAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
@@ -75,9 +73,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.SkippedCount.Should().Be(0);
             result.ErrorCount.Should().Be(0);
 
-            // Vérification de la création d'artiste, album, morceau et événement d'écoute, en UN
-            // seul appel "AddRangeAsync" par type d'entité (pas un appel par ligne), suivi d'un
-            // unique commit atomique.
             await _artistRepository.Received(1).AddRangeAsync(
                 Arg.Is<IEnumerable<Artist>>(a => a != null && a.Count() == 1),
                 Arg.Any<CancellationToken>());
@@ -101,8 +96,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             DateTime listenedAt = DateTime.UtcNow.AddHours(-1);
             var isrc = new Isrc("USUM71607007");
 
-            // Le morceau existe déjà en base (import précédent) : un doublon en base ne peut de
-            // toute façon concerner qu'un morceau déjà connu (voir ImportListeningHistoryUseCase).
             var existingTrack = new Track(Guid.NewGuid(), isrc, "Starboy", Guid.NewGuid(), Guid.NewGuid());
 
             var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy", isrc.Value, 230, listenedAt);
@@ -113,7 +106,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Track>)[existingTrack]);
 
-            // Simule que cette écoute (morceau + date) existe déjà en base pour cet utilisateur.
             _listeningRepository.GetExistingListenedAtsAsync(userId, Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
                 .Returns(new Dictionary<Guid, HashSet<DateTime>> { [existingTrack.Id] = [listenedAt] });
 
@@ -127,7 +119,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.SkippedCount.Should().Be(1);
             result.ErrorCount.Should().Be(0);
 
-            // Rien à persister : aucun appel de lot, et surtout aucun commit inutile.
             await _listeningRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
             await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
         }
@@ -200,9 +191,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.ImportedCount.Should().Be(2);
             result.ErrorCount.Should().Be(0);
 
-            // Un seul artiste et un seul album doivent avoir été créés malgré les deux lignes, et
-            // malgré la casse/les espaces différents dans le nom d'artiste ; en revanche deux
-            // morceaux distincts.
             await _artistRepository.Received(1).AddRangeAsync(
                 Arg.Is<IEnumerable<Artist>>(a => a != null && a.Count() == 1),
                 Arg.Any<CancellationToken>());
@@ -242,7 +230,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // Assert
             result.ImportedCount.Should().Be(1);
 
-            // L'artiste et l'album existants doivent être réutilisés, jamais recréés.
             await _artistRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
             await _albumRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
 
