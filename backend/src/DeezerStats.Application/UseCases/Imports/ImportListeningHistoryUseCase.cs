@@ -17,7 +17,7 @@ namespace DeezerStats.Application.UseCases.Imports
         ITrackRepository trackRepository,
         IArtistRepository artistRepository,
         IAlbumRepository albumRepository,
-        IUnitOfWork unitOfWork)
+        IUnitOfWork unitOfWork) : IImportListeningHistoryUseCase
     {
         private readonly IExcelParserPort _excelParser = excelParser;
         private readonly IListeningEventRepository _listeningEventRepository = listeningEventRepository;
@@ -26,11 +26,11 @@ namespace DeezerStats.Application.UseCases.Imports
         private readonly IAlbumRepository _albumRepository = albumRepository;
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
-        public async Task<ImportResultDto> ExecuteAsync(ImportListeningHistoryCommand command, CancellationToken ct = default)
+        public async Task<ImportReport> ExecuteAsync(ImportListeningHistoryCommand command, CancellationToken ct = default)
         {
             var rows = (await _excelParser.ParseHistoryAsync(command.FileStream, ct)).ToList();
 
-            var errors = new List<ImportErrorDto>();
+            var errors = new List<ImportRowError>();
 
             // Étape 1 (en mémoire, aucun accès base) : valider le format ISRC de chaque ligne. Isoler
             // ici les lignes invalides évite de gaspiller des allers-retours en base sur des données
@@ -46,17 +46,17 @@ namespace DeezerStats.Application.UseCases.Imports
                 }
                 catch (DomainException ex)
                 {
-                    errors.Add(new ImportErrorDto(rowIndex, ex.Message));
+                    errors.Add(new ImportRowError(rowIndex, ex.Message));
                 }
                 catch (Exception)
                 {
-                    errors.Add(new ImportErrorDto(rowIndex, "Format de données invalide pour cette ligne."));
+                    errors.Add(new ImportRowError(rowIndex, "Format de données invalide pour cette ligne."));
                 }
             }
 
             if (validRows.Count == 0)
             {
-                return new ImportResultDto(0, 0, errors.Count, errors);
+                return new ImportReport(0, 0, errors.Count, errors);
             }
 
             // Étapes 2 à 4 : quelques allers-retours en base (bornés par le nombre de morceaux/
@@ -92,7 +92,7 @@ namespace DeezerStats.Application.UseCases.Imports
             var newTracks = new List<Track>();
             var newEvents = new List<ListeningEvent>();
             var processedInThisImport = new HashSet<(Isrc Isrc, DateTime ListenedAt)>();
-            var duplicateCount = 0;
+            var skippedCount = 0;
 
             foreach ((var index, ExcelListeningRow row, Isrc isrc) in validRows)
             {
@@ -111,7 +111,7 @@ namespace DeezerStats.Application.UseCases.Imports
 
                     if (alreadyInDatabase || alreadyInThisFile)
                     {
-                        duplicateCount++;
+                        skippedCount++;
                         continue;
                     }
 
@@ -134,11 +134,11 @@ namespace DeezerStats.Application.UseCases.Imports
                 }
                 catch (DomainException ex)
                 {
-                    errors.Add(new ImportErrorDto(index, ex.Message));
+                    errors.Add(new ImportRowError(index, ex.Message));
                 }
                 catch (Exception)
                 {
-                    errors.Add(new ImportErrorDto(index, "Format de données invalide pour cette ligne."));
+                    errors.Add(new ImportRowError(index, "Format de données invalide pour cette ligne."));
                 }
             }
 
@@ -172,9 +172,9 @@ namespace DeezerStats.Application.UseCases.Imports
                 await _unitOfWork.SaveChangesAsync(ct);
             }
 
-            return new ImportResultDto(
+            return new ImportReport(
                 ImportedCount: newEvents.Count,
-                DuplicateCount: duplicateCount,
+                SkippedCount: skippedCount,
                 ErrorCount: errors.Count,
                 Errors: errors);
         }

@@ -76,6 +76,39 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
         }
 
         [Fact]
+        public async Task AddRangeAsyncWithDuplicateUserTrackListenedAtShouldThrow()
+        {
+            // Arrange : (UserId, TrackId, ListenedAt) est configuré comme clé alternative (voir
+            // ListeningEventConfiguration), le filet de sécurité en base contre les doublons même si
+            // la vérification applicative d'ImportListeningHistoryUseCase est contournée. Ici, les
+            // deux entités étant suivies par le même DbContext, EF Core détecte le conflit dès
+            // l'ajout (identity map du ChangeTracker), avant même SaveChanges : une
+            // InvalidOperationException. Dans un scénario réel de deux imports concurrents utilisant
+            // chacun leur propre DbContext, c'est la contrainte d'unicité en base qui interviendrait,
+            // avec une DbUpdateException levée par SaveChangesAsync (même comportement que pour
+            // Artist/Album/User).
+            using ApplicationDbContext context = CreateInMemoryDbContext();
+            var repository = new ListeningEventRepository(context);
+
+            var userId = Guid.NewGuid();
+            var trackId = Guid.NewGuid();
+            DateTime listenedAt = DateTime.UtcNow;
+
+            await repository.AddRangeAsync([
+                new ListeningEvent(Guid.NewGuid(), userId, trackId, new Duration(200), listenedAt),
+            ]);
+            await context.SaveChangesAsync();
+
+            // Act
+            Func<Task> act = () => repository.AddRangeAsync([
+                new ListeningEvent(Guid.NewGuid(), userId, trackId, new Duration(180), listenedAt),
+            ]);
+
+            // Assert
+            await act.Should().ThrowAsync<InvalidOperationException>();
+        }
+
+        [Fact]
         public async Task GetExistingListenedAtsAsyncWithNoTrackIdsShouldReturnEmptyDictionary()
         {
             // Arrange

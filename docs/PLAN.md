@@ -65,7 +65,7 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 6.4 | `GET /auth/me` + middleware `JwtBearer` + `[Authorize]` global par défaut | ⬜ |
 | 6.5 | Tests d'intégration du parcours register → login → refresh → logout | ⬜ |
 
-## Phase 7 — Import Excel bout-en-bout ⬜
+## Phase 7 — Import Excel bout-en-bout ✅
 
 | # | Ticket |
 |---|--------|

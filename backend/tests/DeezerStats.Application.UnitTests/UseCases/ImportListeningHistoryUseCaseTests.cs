@@ -68,11 +68,11 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, stream);
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(1);
-            result.DuplicateCount.Should().Be(0);
+            result.SkippedCount.Should().Be(0);
             result.ErrorCount.Should().Be(0);
 
             // Vérification de la création d'artiste, album, morceau et événement d'écoute, en UN
@@ -120,11 +120,11 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(0);
-            result.DuplicateCount.Should().Be(1);
+            result.SkippedCount.Should().Be(1);
             result.ErrorCount.Should().Be(0);
 
             // Rien à persister : aucun appel de lot, et surtout aucun commit inutile.
@@ -147,11 +147,11 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(1);
-            result.DuplicateCount.Should().Be(1);
+            result.SkippedCount.Should().Be(1);
         }
 
         [Fact]
@@ -168,12 +168,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(1);
             result.ErrorCount.Should().Be(1);
-            result.Errors.Should().ContainSingle(e => e.RowIndex == 2 && e.Message.Contains("ISRC"));
+            result.Errors.Should().ContainSingle(e => e.RowNumber == 2 && e.Message.Contains("ISRC"));
         }
 
         [Fact]
@@ -194,7 +194,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(2);
@@ -237,7 +237,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
-            ImportResultDto result = await _useCase.ExecuteAsync(command);
+            ImportReport result = await _useCase.ExecuteAsync(command);
 
             // Assert
             result.ImportedCount.Should().Be(1);

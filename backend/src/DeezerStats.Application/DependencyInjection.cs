@@ -1,5 +1,4 @@
 using DeezerStats.Application.UseCases.Imports;
-using DeezerStats.Application.UseCases.Tracks;
 using DeezerStats.Application.UseCases.Users;
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
@@ -19,8 +18,15 @@ namespace DeezerStats.Application
             // unitaires (qui instancient les use cases directement) ne pouvaient pas révéler.
             services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
             services.AddScoped<IAuthenticateUserUseCase, AuthenticateUserUseCase>();
-            services.AddScoped<ImportListeningHistoryUseCase>();
-            services.AddScoped<GetOrEnrichTrackUseCase>();
+            services.AddScoped<IImportListeningHistoryUseCase, ImportListeningHistoryUseCase>();
+
+            // GetOrEnrichTrackUseCase n'est PAS enregistré ici volontairement : IDeezerEnrichmentPort
+            // (Phase 8 — enrichissement Deezer) n'a encore aucun adaptateur dans Infrastructure. Un
+            // enregistrement prématuré ferait planter la construction du ServiceProvider dès qu'elle
+            // est validée (voir WebApplicationFactory en tests d'intégration, qui active
+            // ServiceProviderOptions.ValidateOnBuild — c'est exactement ce qui a révélé ce problème).
+            // À réactiver quand la Phase 8 fournira le vrai adaptateur, en même temps que son
+            // enregistrement côté Infrastructure.DependencyInjection.
 
             return services;
         }

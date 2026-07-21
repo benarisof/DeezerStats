@@ -57,6 +57,14 @@ builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSc
     {
         JwtSettings jwtSettings = jwtSettingsOptions.Value;
 
+        // Désactive le remapping historique des claims JWT standards vers les URI ClaimTypes de
+        // .NET (ex. "sub" -> ClaimTypes.NameIdentifier) : ce comportement par défaut dépend du
+        // handler de token utilisé en interne et n'est pas garanti stable d'une version à l'autre.
+        // Avec MapInboundClaims = false, le claim "sub" (voir JwtAccessTokenGenerator) reste "sub"
+        // de façon déterministe, ce que les controllers peuvent lire sans ambiguïté (voir
+        // ImportsController.GetAuthenticatedUserId).
+        bearerOptions.MapInboundClaims = false;
+
         bearerOptions.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
