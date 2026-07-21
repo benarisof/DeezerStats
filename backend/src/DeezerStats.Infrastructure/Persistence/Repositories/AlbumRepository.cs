@@ -10,10 +10,36 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
 
         public async Task<Album?> GetByIdAsync(Guid id, CancellationToken ct = default) => await _context.Albums.FirstOrDefaultAsync(a => a.Id == id, ct);
 
+        public async Task<Album?> GetByTitleAndArtistAsync(string title, Guid artistId, CancellationToken ct = default)
+        {
+            var normalizedTitle = Album.Normalize(title);
+            return await _context.Albums.FirstOrDefaultAsync(
+                a => a.ArtistId == artistId && a.NormalizedTitle == normalizedTitle,
+                ct);
+        }
+
+        public async Task<IReadOnlyList<Album>> GetByArtistIdsAsync(IEnumerable<Guid> artistIds, CancellationToken ct = default)
+        {
+            Guid[] ids = artistIds.Distinct().ToArray();
+            if (ids.Length == 0)
+            {
+                return [];
+            }
+
+            return await _context.Albums
+                .Where(a => ids.Contains(a.ArtistId))
+                .ToListAsync(ct);
+        }
+
         public async Task AddAsync(Album album, CancellationToken ct = default)
         {
             await _context.Albums.AddAsync(album, ct);
             await _context.SaveChangesAsync(ct);
+        }
+
+        public async Task AddRangeAsync(IEnumerable<Album> albums, CancellationToken ct = default)
+        {
+            await _context.Albums.AddRangeAsync(albums, ct);
         }
 
         public async Task UpdateAsync(Album album, CancellationToken ct = default)

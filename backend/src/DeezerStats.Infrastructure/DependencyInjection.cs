@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
@@ -26,6 +27,10 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IArtistRepository, ArtistRepository>();
             services.AddScoped<IListeningEventRepository, ListeningEventRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+
+            // Unit of Work : permet aux cas d'usage multi-agrégats (ex. import de l'historique
+            // d'écoute) de committer plusieurs repositories en une seule transaction atomique.
+            services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             // Adapteurs
             services.AddScoped<IExcelParserPort, ClosedXmlExcelParser>();

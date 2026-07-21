@@ -1,4 +1,5 @@
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Imports;
@@ -17,6 +18,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly ITrackRepository _trackRepository = Substitute.For<ITrackRepository>();
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
         private readonly IAlbumRepository _albumRepository = Substitute.For<IAlbumRepository>();
+        private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
 
         private readonly ImportListeningHistoryUseCase _useCase;
 
@@ -27,7 +29,19 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 _listeningRepository,
                 _trackRepository,
                 _artistRepository,
-                _albumRepository);
+                _albumRepository,
+                _unitOfWork);
+
+            // Par défaut, aucune donnée préexistante en base : chaque test ne surcharge que ce dont
+            // il a besoin pour rester lisible.
+            _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Track>)[]);
+            _listeningRepository.GetExistingListenedAtsAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<Isrc, HashSet<DateTime>>());
+            _artistRepository.GetByNamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Artist>)[]);
+            _albumRepository.GetByArtistIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Album>)[]);
         }
 
         [Fact]
@@ -49,12 +63,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _excelParser.ParseHistoryAsync(stream, Arg.Any<CancellationToken>())
                 .Returns([row]);
 
-            _listeningRepository.ExistsAsync(userId, Arg.Any<Isrc>(), listenedAt, Arg.Any<CancellationToken>())
-                .Returns(false);
-
-            _trackRepository.GetByIsrcAsync(Arg.Any<Isrc>(), Arg.Any<CancellationToken>())
-                .Returns((Track?)null); // Morceau non existant en BDD
-
             var command = new ImportListeningHistoryCommand(userId, stream);
 
             // Act
@@ -65,30 +73,40 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.DuplicateCount.Should().Be(0);
             result.ErrorCount.Should().Be(0);
 
-            // Vérification de la création d'artiste, album, morceau et événement d'écoute
-            await _artistRepository.Received(1).AddAsync(Arg.Any<Artist>(), Arg.Any<CancellationToken>());
-            await _albumRepository.Received(1).AddAsync(Arg.Any<Album>(), Arg.Any<CancellationToken>());
-            await _trackRepository.Received(1).AddAsync(Arg.Any<Track>(), Arg.Any<CancellationToken>());
+            // Vérification de la création d'artiste, album, morceau et événement d'écoute, en UN
+            // seul appel "AddRangeAsync" par type d'entité (pas un appel par ligne), suivi d'un
+            // unique commit atomique.
+            await _artistRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Artist>>(a => a != null && a.Count() == 1),
+                Arg.Any<CancellationToken>());
+            await _albumRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Album>>(a => a != null && a.Count() == 1),
+                Arg.Any<CancellationToken>());
+            await _trackRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Track>>(t => t != null && t.Count() == 1),
+                Arg.Any<CancellationToken>());
             await _listeningRepository.Received(1).AddRangeAsync(
                 Arg.Is<IEnumerable<ListeningEvent>>(events => events != null && events.Count() == 1),
                 Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]
-        public async Task ExecuteAsyncWithDuplicateRowsShouldSkipDuplicates()
+        public async Task ExecuteAsyncWithDuplicateAlreadyInDatabaseShouldSkipDuplicates()
         {
             // Arrange
             var userId = Guid.NewGuid();
             DateTime listenedAt = DateTime.UtcNow.AddHours(-1);
+            var isrc = new Isrc("USUM71607007");
 
-            var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy", "USUM71607007", 230, listenedAt);
+            var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy", isrc.Value, 230, listenedAt);
 
             _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
                 .Returns([row]);
 
-            // Simule que l'écoute existe DÉJÀ en BDD
-            _listeningRepository.ExistsAsync(userId, Arg.Any<Isrc>(), listenedAt, Arg.Any<CancellationToken>())
-                .Returns(true);
+            // Simule que cette écoute (isrc + date) existe déjà en base pour cet utilisateur.
+            _listeningRepository.GetExistingListenedAtsAsync(userId, Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<Isrc, HashSet<DateTime>> { [isrc] = [listenedAt] });
 
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
@@ -100,8 +118,31 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.DuplicateCount.Should().Be(1);
             result.ErrorCount.Should().Be(0);
 
-            // Aucun ajout ne doit être effectué
+            // Rien à persister : aucun appel de lot, et surtout aucun commit inutile.
             await _listeningRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
+            await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncWithDuplicateRowsWithinTheSameFileShouldCountOnlyOnce()
+        {
+            // Arrange : le fichier contient deux fois la même ligne (même isrc, même date d'écoute),
+            // sans que rien de tel n'existe en base au préalable.
+            var userId = Guid.NewGuid();
+            DateTime listenedAt = DateTime.UtcNow.AddHours(-1);
+            var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy", "USUM71607007", 230, listenedAt);
+
+            _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns([row, row]);
+
+            var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
+
+            // Act
+            ImportResultDto result = await _useCase.ExecuteAsync(command);
+
+            // Assert
+            result.ImportedCount.Should().Be(1);
+            result.DuplicateCount.Should().Be(1);
         }
 
         [Fact]
@@ -115,9 +156,6 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
                 .Returns([invalidRow, validRow]);
 
-            _trackRepository.GetByIsrcAsync(Arg.Any<Isrc>(), Arg.Any<CancellationToken>())
-                .Returns((Track?)null);
-
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 
             // Act
@@ -127,6 +165,82 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.ImportedCount.Should().Be(1);
             result.ErrorCount.Should().Be(1);
             result.Errors.Should().ContainSingle(e => e.RowIndex == 2 && e.Message.Contains("ISRC"));
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncWithSameArtistAcrossMultipleRowsShouldReuseArtistAndAlbumInsteadOfCreatingDuplicates()
+        {
+            // Arrange : deux lignes du même artiste/album (avec une casse et des espaces différents,
+            // comme cela peut arriver entre deux exports Deezer), mais deux morceaux différents.
+            var userId = Guid.NewGuid();
+            DateTime listenedAt1 = DateTime.UtcNow.AddHours(-2);
+            DateTime listenedAt2 = DateTime.UtcNow.AddHours(-1);
+
+            var firstRow = new ExcelListeningRow("Blinding Lights", "The Weeknd", "After Hours", "USUM71607007", 200, listenedAt1);
+            var secondRow = new ExcelListeningRow("In Your Eyes", " the weeknd ", "After Hours", "USUM71607008", 210, listenedAt2);
+
+            _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns([firstRow, secondRow]);
+
+            var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
+
+            // Act
+            ImportResultDto result = await _useCase.ExecuteAsync(command);
+
+            // Assert
+            result.ImportedCount.Should().Be(2);
+            result.ErrorCount.Should().Be(0);
+
+            // Un seul artiste et un seul album doivent avoir été créés malgré les deux lignes, et
+            // malgré la casse/les espaces différents dans le nom d'artiste ; en revanche deux
+            // morceaux distincts.
+            await _artistRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Artist>>(a => a != null && a.Count() == 1),
+                Arg.Any<CancellationToken>());
+            await _albumRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Album>>(a => a != null && a.Count() == 1),
+                Arg.Any<CancellationToken>());
+            await _trackRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Track>>(t => t != null && t.Count() == 2),
+                Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncWhenArtistAndAlbumAlreadyExistInDatabaseShouldReuseThemInsteadOfCreatingDuplicates()
+        {
+            // Arrange : l'artiste et l'album ont déjà été créés lors d'un import précédent.
+            var userId = Guid.NewGuid();
+            DateTime listenedAt = DateTime.UtcNow.AddHours(-1);
+
+            var row = new ExcelListeningRow("New Song", "Daft Punk", "Discovery", "USUM71607009", 220, listenedAt);
+
+            _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns([row]);
+
+            var existingArtist = new Artist(Guid.NewGuid(), "Daft Punk");
+            _artistRepository.GetByNamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Artist>)[existingArtist]);
+
+            var existingAlbum = new Album(Guid.NewGuid(), "Discovery", existingArtist.Id);
+            _albumRepository.GetByArtistIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Album>)[existingAlbum]);
+
+            var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
+
+            // Act
+            ImportResultDto result = await _useCase.ExecuteAsync(command);
+
+            // Assert
+            result.ImportedCount.Should().Be(1);
+
+            // L'artiste et l'album existants doivent être réutilisés, jamais recréés.
+            await _artistRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
+            await _albumRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
+
+            await _trackRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Track>>(tracks => tracks != null && tracks.Single().ArtistId == existingArtist.Id
+                    && tracks.Single().AlbumId == existingAlbum.Id),
+                Arg.Any<CancellationToken>());
         }
     }
 }

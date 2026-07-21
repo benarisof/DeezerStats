@@ -1,4 +1,5 @@
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
@@ -13,74 +14,154 @@ namespace DeezerStats.Application.UseCases.Imports
         IListeningEventRepository listeningEventRepository,
         ITrackRepository trackRepository,
         IArtistRepository artistRepository,
-        IAlbumRepository albumRepository)
+        IAlbumRepository albumRepository,
+        IUnitOfWork unitOfWork)
     {
         private readonly IExcelParserPort _excelParser = excelParser;
         private readonly IListeningEventRepository _listeningEventRepository = listeningEventRepository;
         private readonly ITrackRepository _trackRepository = trackRepository;
         private readonly IArtistRepository _artistRepository = artistRepository;
         private readonly IAlbumRepository _albumRepository = albumRepository;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
         public async Task<ImportResultDto> ExecuteAsync(ImportListeningHistoryCommand command, CancellationToken ct = default)
         {
-            IEnumerable<ExcelListeningRow> rows = await _excelParser.ParseHistoryAsync(command.FileStream, ct);
+            var rows = (await _excelParser.ParseHistoryAsync(command.FileStream, ct)).ToList();
 
-            List<ListeningEvent> newEvents = [];
-            List<ImportErrorDto> errors = [];
-            var duplicateCount = 0;
+            var errors = new List<ImportErrorDto>();
+
+            // Étape 1 (en mémoire, aucun accès base) : valider le format ISRC de chaque ligne. Isoler
+            // ici les lignes invalides évite de gaspiller des allers-retours en base sur des données
+            // qui de toute façon ne pourront pas être importées.
+            var validRows = new List<(int RowIndex, ExcelListeningRow Row, Isrc Isrc)>();
             var rowIndex = 1; // Ligne 1 correspond aux en-têtes Excel
-
             foreach (ExcelListeningRow row in rows)
             {
                 rowIndex++;
                 try
                 {
-                    // 1. Validation de l'ISRC via le Value Object du Domaine
-                    var isrc = new Isrc(row.Isrc);
+                    validRows.Add((rowIndex, row, new Isrc(row.Isrc)));
+                }
+                catch (DomainException ex)
+                {
+                    errors.Add(new ImportErrorDto(rowIndex, ex.Message));
+                }
+                catch (Exception)
+                {
+                    errors.Add(new ImportErrorDto(rowIndex, "Format de données invalide pour cette ligne."));
+                }
+            }
 
-                    // 2. Détection des doublons d'écoute (Même utilisateur + même ISRC + même date/heure)
-                    var isDuplicate = await _listeningEventRepository.ExistsAsync(
-                        command.UserId,
-                        isrc,
-                        row.ListenedAt,
-                        ct);
+            if (validRows.Count == 0)
+            {
+                return new ImportResultDto(0, 0, errors.Count, errors);
+            }
 
-                    if (isDuplicate)
+            // Étapes 2 à 4 : quelques allers-retours en base (bornés par le nombre de morceaux/
+            // artistes/albums DISTINCTS du fichier, pas par son nombre de lignes) au lieu d'un
+            // aller-retour par ligne. Sur un fichier de ~50 000 lignes, c'est la différence entre
+            // quelques requêtes et des dizaines de milliers.
+            Isrc[] distinctIsrcs = [.. validRows.Select(r => r.Isrc).Distinct()];
+
+            IReadOnlyList<Track> existingTracks = await _trackRepository.GetByIsrcsAsync(distinctIsrcs, ct);
+            var trackByIsrc = existingTracks.ToDictionary(t => t.Isrc);
+
+            IReadOnlyDictionary<Isrc, HashSet<DateTime>> existingListenedAts =
+                await _listeningEventRepository.GetExistingListenedAtsAsync(command.UserId, distinctIsrcs, ct);
+
+            var rowsNeedingNewTrack = validRows.Where(r => !trackByIsrc.ContainsKey(r.Isrc)).ToList();
+
+            var distinctArtistNames = rowsNeedingNewTrack.Select(r => r.Row.ArtistName).Distinct().ToArray();
+            IReadOnlyList<Artist> existingArtists = await _artistRepository.GetByNamesAsync(distinctArtistNames, ct);
+            var artistByNormalizedName = existingArtists.ToDictionary(a => a.NormalizedName);
+
+            Guid[] existingArtistIds = [.. existingArtists.Select(a => a.Id)];
+            IReadOnlyList<Album> existingAlbums = await _albumRepository.GetByArtistIdsAsync(existingArtistIds, ct);
+            var albumByArtistAndNormalizedTitle =
+                existingAlbums.ToDictionary(a => (a.ArtistId, a.NormalizedTitle));
+
+            // Étape 5 (en mémoire, aucun accès base) : construction des nouvelles entités à créer.
+            var newArtists = new Dictionary<string, Artist>();
+            var newAlbums = new Dictionary<(Guid ArtistId, string NormalizedTitle), Album>();
+            var newTracks = new List<Track>();
+            var newEvents = new List<ListeningEvent>();
+            var processedInThisImport = new HashSet<(Isrc Isrc, DateTime ListenedAt)>();
+            var duplicateCount = 0;
+
+            foreach ((var index, ExcelListeningRow row, Isrc isrc) in validRows)
+            {
+                try
+                {
+                    var alreadyInDatabase = existingListenedAts.TryGetValue(isrc, out HashSet<DateTime>? listenedDates)
+                        && listenedDates.Contains(row.ListenedAt);
+
+                    // Empêche aussi qu'une même ligne dupliquée deux fois DANS le fichier lui-même
+                    // (par ex. export Deezer contenant deux fois la même écoute) ne soit comptée
+                    // deux fois comme "importée".
+                    var alreadyInThisFile = !processedInThisImport.Add((isrc, row.ListenedAt));
+
+                    if (alreadyInDatabase || alreadyInThisFile)
                     {
                         duplicateCount++;
                         continue;
                     }
 
-                    // 3. Récupération ou création des entités Catalogue (Track, Artist, Album)
-                    Track track = await EnsureCatalogEntitiesExistAsync(row, isrc, ct);
+                    if (!trackByIsrc.TryGetValue(isrc, out Track? track))
+                    {
+                        Artist artist = ResolveArtist(row.ArtistName, artistByNormalizedName, newArtists);
+                        Album album = ResolveAlbum(row.AlbumTitle, artist.Id, albumByArtistAndNormalizedTitle, newAlbums);
 
-                    // 4. Instanciation de l'événement d'écoute immuable
-                    var listeningEvent = new ListeningEvent(
+                        track = new Track(Guid.NewGuid(), isrc, row.TrackTitle, artist.Id, album.Id);
+                        newTracks.Add(track);
+                        trackByIsrc[isrc] = track; // pour les lignes suivantes référençant le même morceau
+                    }
+
+                    newEvents.Add(new ListeningEvent(
                         id: Guid.NewGuid(),
                         userId: command.UserId,
                         trackId: track.Id,
                         isrc: isrc,
                         listeningDuration: new Duration(row.DurationInSeconds),
-                        listenedAt: row.ListenedAt);
-
-                    newEvents.Add(listeningEvent);
+                        listenedAt: row.ListenedAt));
                 }
                 catch (DomainException ex)
                 {
-                    // Capture des erreurs de validation métier (ex: ISRC invalide)
-                    errors.Add(new ImportErrorDto(rowIndex, ex.Message));
+                    errors.Add(new ImportErrorDto(index, ex.Message));
                 }
                 catch (Exception)
                 {
-                    // Capture des erreurs inattendues de format de données
-                    errors.Add(new ImportErrorDto(rowIndex, "Format de données invalide pour cette ligne."));
+                    errors.Add(new ImportErrorDto(index, "Format de données invalide pour cette ligne."));
                 }
             }
 
-            // 5. Persistance en batch dans PostgreSQL
+            // Étape 6 : un seul commit atomique pour tout le lot. Les AddRangeAsync ci-dessous ne
+            // font que suivre les nouvelles entités (aucun accès base individuel) ; c'est l'unique
+            // appel à SaveChangesAsync qui déclenche la persistance de tout le lot en une seule
+            // transaction, garantissant qu'un échec n'insère jamais un artiste/album orphelin sans
+            // ses morceaux/écoutes correspondants.
+            if (newArtists.Count > 0)
+            {
+                await _artistRepository.AddRangeAsync(newArtists.Values, ct);
+            }
+
+            if (newAlbums.Count > 0)
+            {
+                await _albumRepository.AddRangeAsync(newAlbums.Values, ct);
+            }
+
+            if (newTracks.Count > 0)
+            {
+                await _trackRepository.AddRangeAsync(newTracks, ct);
+            }
+
             if (newEvents.Count > 0)
             {
                 await _listeningEventRepository.AddRangeAsync(newEvents, ct);
+            }
+
+            if (newArtists.Count > 0 || newAlbums.Count > 0 || newTracks.Count > 0 || newEvents.Count > 0)
+            {
+                await _unitOfWork.SaveChangesAsync(ct);
             }
 
             return new ImportResultDto(
@@ -90,25 +171,50 @@ namespace DeezerStats.Application.UseCases.Imports
                 Errors: errors);
         }
 
-        private async Task<Track> EnsureCatalogEntitiesExistAsync(ExcelListeningRow row, Isrc isrc, CancellationToken ct)
+        private static Artist ResolveArtist(
+            string artistName,
+            Dictionary<string, Artist> existingArtistsByNormalizedName,
+            Dictionary<string, Artist> newArtistsByNormalizedName)
         {
-            Track? track = await _trackRepository.GetByIsrcAsync(isrc, ct);
-            if (track != null)
+            var normalizedName = Artist.Normalize(artistName);
+
+            if (newArtistsByNormalizedName.TryGetValue(normalizedName, out Artist? pendingArtist))
             {
-                return track;
+                return pendingArtist;
             }
 
-            // Si le morceau n'existe pas encore dans notre base, on initialise l'artiste et l'album associés
-            var artist = new Artist(Guid.NewGuid(), row.ArtistName);
-            await _artistRepository.AddAsync(artist, ct);
+            if (existingArtistsByNormalizedName.TryGetValue(normalizedName, out Artist? existingArtist))
+            {
+                return existingArtist;
+            }
 
-            var album = new Album(Guid.NewGuid(), row.AlbumTitle, artist.Id);
-            await _albumRepository.AddAsync(album, ct);
+            var artist = new Artist(Guid.NewGuid(), artistName);
+            newArtistsByNormalizedName[normalizedName] = artist;
+            return artist;
+        }
 
-            track = new Track(Guid.NewGuid(), isrc, row.TrackTitle, artist.Id, album.Id);
-            await _trackRepository.AddAsync(track, ct);
+        private static Album ResolveAlbum(
+            string albumTitle,
+            Guid artistId,
+            Dictionary<(Guid ArtistId, string NormalizedTitle), Album> existingAlbums,
+            Dictionary<(Guid ArtistId, string NormalizedTitle), Album> newAlbums)
+        {
+            var normalizedTitle = Album.Normalize(albumTitle);
+            (Guid ArtistId, string NormalizedTitle) key = (ArtistId: artistId, NormalizedTitle: normalizedTitle);
 
-            return track;
+            if (newAlbums.TryGetValue(key, out Album? pendingAlbum))
+            {
+                return pendingAlbum;
+            }
+
+            if (existingAlbums.TryGetValue(key, out Album? existingAlbum))
+            {
+                return existingAlbum;
+            }
+
+            var album = new Album(Guid.NewGuid(), albumTitle, artistId);
+            newAlbums[key] = album;
+            return album;
         }
     }
 }
