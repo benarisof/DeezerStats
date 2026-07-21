@@ -1,5 +1,6 @@
 using DeezerStats.Application.DTOs.Stats;
-using DeezerStats.Application.UseCases.Stats;
+using DeezerStats.Application.UseCases.Stats.Album;
+using DeezerStats.Application.UseCases.Stats.TopAlbums;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeezerStats.Api.Controllers;

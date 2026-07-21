@@ -1,0 +1,4 @@
+namespace DeezerStats.Application.UseCases.Stats.TopAlbums
+{
+    public record GetTopAlbumsQuery(Guid UserId, DateOnly? From, DateOnly? To, int Page, int PageSize) : IPagedQuery;
+}

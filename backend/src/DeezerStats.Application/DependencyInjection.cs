@@ -1,7 +1,13 @@
 using DeezerStats.Application.UseCases.Albums;
 using DeezerStats.Application.UseCases.Artists;
 using DeezerStats.Application.UseCases.Import;
-using DeezerStats.Application.UseCases.Stats;
+using DeezerStats.Application.UseCases.Stats.Album;
+using DeezerStats.Application.UseCases.Stats.Artist;
+using DeezerStats.Application.UseCases.Stats.History;
+using DeezerStats.Application.UseCases.Stats.Home;
+using DeezerStats.Application.UseCases.Stats.TopAlbums;
+using DeezerStats.Application.UseCases.Stats.TopArtists;
+using DeezerStats.Application.UseCases.Stats.TopTracks;
 using DeezerStats.Application.UseCases.Tracks;
 using DeezerStats.Application.UseCases.Users;
 using FluentValidation;

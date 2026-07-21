@@ -1,4 +1,4 @@
-using DeezerStats.Application.UseCases.Stats;
+using DeezerStats.Application.UseCases.Stats.TopAlbums;
 
 namespace DeezerStats.Application.Validation.Validators
 {
