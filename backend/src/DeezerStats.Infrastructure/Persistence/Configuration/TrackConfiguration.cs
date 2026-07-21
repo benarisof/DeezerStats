@@ -10,8 +10,8 @@ public class TrackConfiguration : IEntityTypeConfiguration<Track>
 {
     public void Configure(EntityTypeBuilder<Track> builder)
     {
-        builder.ToTable("tracks");
-
+        // Pas de ToTable() explicite : convention EF Core par défaut (PascalCase pluralisé),
+        // cohérente avec Albums/Artists/Users et avec le nommage PascalCase de toutes les colonnes.
         builder.HasKey(t => t.Id);
 
         // Conversion du Value Object Isrc -> string avec type fixe

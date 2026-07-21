@@ -9,8 +9,9 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
     {
         public void Configure(EntityTypeBuilder<ListeningEvent> builder)
         {
-            builder.ToTable("listening_events");
-
+            // Pas de ToTable() explicite : convention EF Core par défaut (PascalCase pluralisé),
+            // cohérente avec Albums/Artists/Users/Tracks et avec le nommage PascalCase de toutes
+            // les colonnes.
             builder.HasKey(e => e.Id);
 
             builder.Property(e => e.UserId).IsRequired();
