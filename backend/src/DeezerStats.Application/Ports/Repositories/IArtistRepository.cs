@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
 
 namespace DeezerStats.Application.Ports.Repositories
 {

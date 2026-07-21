@@ -1,7 +1,7 @@
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 
-namespace DeezerStats.Domain.Entities
+namespace DeezerStats.Domain.Aggregates.AlbumAggregate
 {
     public class Album : Entity<Guid>, IAggregateRoot
     {

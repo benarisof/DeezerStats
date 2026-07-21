@@ -1,7 +1,7 @@
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 
-namespace DeezerStats.Domain.Entities
+namespace DeezerStats.Domain.Aggregates.ListeningEventAggregate
 {
     public class ListeningEvent : Entity<Guid>, IAggregateRoot
     {
@@ -9,7 +9,6 @@ namespace DeezerStats.Domain.Entities
             Guid id,
             Guid userId,
             Guid trackId,
-            Isrc isrc,
             Duration listeningDuration,
             DateTime listenedAt)
             : base(id)
@@ -26,7 +25,6 @@ namespace DeezerStats.Domain.Entities
 
             UserId = userId;
             TrackId = trackId;
-            Isrc = isrc ?? throw new ArgumentNullException(nameof(isrc));
             ListeningDuration = listeningDuration ?? throw new ArgumentNullException(nameof(listeningDuration));
 
             if (listenedAt > DateTime.UtcNow.AddMinutes(5))
@@ -39,15 +37,16 @@ namespace DeezerStats.Domain.Entities
 
         private ListeningEvent()
         {
-            Isrc = null!;
             ListeningDuration = null!;
         }
 
         public Guid UserId { get; }
 
+        // TrackId est l'unique source de vérité pour identifier le morceau écouté : on ne duplique
+        // plus l'Isrc ici (voir Track.Isrc). Une copie locale de l'Isrc n'était garantie d'aucune
+        // synchronisation si l'ISRC d'un Track était un jour corrigé (ex. erreur d'import initiale
+        // détectée après coup) — source de divergence silencieuse entre les deux tables.
         public Guid TrackId { get; }
-
-        public Isrc Isrc { get; init; }
 
         public Duration ListeningDuration { get; init; }
 

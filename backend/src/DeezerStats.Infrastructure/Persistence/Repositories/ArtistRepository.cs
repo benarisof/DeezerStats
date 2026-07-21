@@ -1,5 +1,5 @@
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeezerStats.Infrastructure.Persistence.Repositories

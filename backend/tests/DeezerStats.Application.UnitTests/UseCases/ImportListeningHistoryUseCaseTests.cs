@@ -3,8 +3,10 @@ using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Imports;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
-using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.ValueObjects;
 using FluentAssertions;
 using NSubstitute;
@@ -36,8 +38,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // il a besoin pour rester lisible.
             _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Track>)[]);
-            _listeningRepository.GetExistingListenedAtsAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
-                .Returns(new Dictionary<Isrc, HashSet<DateTime>>());
+            _listeningRepository.GetExistingListenedAtsAsync(Arg.Any<Guid>(), Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<Guid, HashSet<DateTime>>());
             _artistRepository.GetByNamesAsync(Arg.Any<IEnumerable<string>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Artist>)[]);
             _albumRepository.GetByArtistIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
@@ -99,14 +101,21 @@ namespace DeezerStats.Application.UnitTests.UseCases
             DateTime listenedAt = DateTime.UtcNow.AddHours(-1);
             var isrc = new Isrc("USUM71607007");
 
+            // Le morceau existe déjà en base (import précédent) : un doublon en base ne peut de
+            // toute façon concerner qu'un morceau déjà connu (voir ImportListeningHistoryUseCase).
+            var existingTrack = new Track(Guid.NewGuid(), isrc, "Starboy", Guid.NewGuid(), Guid.NewGuid());
+
             var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy", isrc.Value, 230, listenedAt);
 
             _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
                 .Returns([row]);
 
-            // Simule que cette écoute (isrc + date) existe déjà en base pour cet utilisateur.
-            _listeningRepository.GetExistingListenedAtsAsync(userId, Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
-                .Returns(new Dictionary<Isrc, HashSet<DateTime>> { [isrc] = [listenedAt] });
+            _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
+                .Returns((IReadOnlyList<Track>)[existingTrack]);
+
+            // Simule que cette écoute (morceau + date) existe déjà en base pour cet utilisateur.
+            _listeningRepository.GetExistingListenedAtsAsync(userId, Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<Guid, HashSet<DateTime>> { [existingTrack.Id] = [listenedAt] });
 
             var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
 

@@ -2,8 +2,10 @@ using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
-using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 
@@ -66,8 +68,12 @@ namespace DeezerStats.Application.UseCases.Imports
             IReadOnlyList<Track> existingTracks = await _trackRepository.GetByIsrcsAsync(distinctIsrcs, ct);
             var trackByIsrc = existingTracks.ToDictionary(t => t.Isrc);
 
-            IReadOnlyDictionary<Isrc, HashSet<DateTime>> existingListenedAts =
-                await _listeningEventRepository.GetExistingListenedAtsAsync(command.UserId, distinctIsrcs, ct);
+            // Interrogée par TrackId (et non par ISRC, voir ListeningEvent.TrackId) : un doublon en
+            // base ne peut de toute façon concerner qu'un morceau déjà existant, un morceau tout
+            // juste créé par cet import n'ayant par définition aucune écoute antérieure enregistrée.
+            Guid[] existingTrackIds = [.. existingTracks.Select(t => t.Id)];
+            IReadOnlyDictionary<Guid, HashSet<DateTime>> existingListenedAtsByTrackId =
+                await _listeningEventRepository.GetExistingListenedAtsAsync(command.UserId, existingTrackIds, ct);
 
             var rowsNeedingNewTrack = validRows.Where(r => !trackByIsrc.ContainsKey(r.Isrc)).ToList();
 
@@ -92,7 +98,10 @@ namespace DeezerStats.Application.UseCases.Imports
             {
                 try
                 {
-                    var alreadyInDatabase = existingListenedAts.TryGetValue(isrc, out HashSet<DateTime>? listenedDates)
+                    trackByIsrc.TryGetValue(isrc, out Track? track);
+
+                    var alreadyInDatabase = track != null
+                        && existingListenedAtsByTrackId.TryGetValue(track.Id, out HashSet<DateTime>? listenedDates)
                         && listenedDates.Contains(row.ListenedAt);
 
                     // Empêche aussi qu'une même ligne dupliquée deux fois DANS le fichier lui-même
@@ -106,7 +115,7 @@ namespace DeezerStats.Application.UseCases.Imports
                         continue;
                     }
 
-                    if (!trackByIsrc.TryGetValue(isrc, out Track? track))
+                    if (track == null)
                     {
                         Artist artist = ResolveArtist(row.ArtistName, artistByNormalizedName, newArtists);
                         Album album = ResolveAlbum(row.AlbumTitle, artist.Id, albumByArtistAndNormalizedTitle, newAlbums);
@@ -120,7 +129,6 @@ namespace DeezerStats.Application.UseCases.Imports
                         id: Guid.NewGuid(),
                         userId: command.UserId,
                         trackId: track.Id,
-                        isrc: isrc,
                         listeningDuration: new Duration(row.DurationInSeconds),
                         listenedAt: row.ListenedAt));
                 }

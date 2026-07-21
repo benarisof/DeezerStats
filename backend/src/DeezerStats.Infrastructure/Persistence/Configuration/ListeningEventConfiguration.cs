@@ -1,4 +1,5 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
+using DeezerStats.Domain.Aggregates.TrackAggregate;
 using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
@@ -16,13 +17,6 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
             builder.Property(e => e.UserId).IsRequired();
             builder.Property(e => e.TrackId).IsRequired();
 
-            builder.Property(e => e.Isrc)
-                .HasConversion(
-                    isrc => isrc.Value,
-                    value => new Isrc(value))
-                .HasMaxLength(12)
-                .IsRequired();
-
             builder.Property(e => e.ListeningDuration)
                 .HasConversion(
                     d => d.TotalSeconds,
@@ -33,7 +27,14 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
                 .HasColumnType("timestamp with time zone")
                 .IsRequired();
 
-            builder.HasIndex(e => new { e.UserId, e.Isrc, e.ListenedAt })
+            // FK explicite vers Track : TrackId est l'unique référence au morceau écouté (l'ISRC
+            // n'est plus dupliqué sur ListeningEvent, voir ListeningEvent.TrackId).
+            builder.HasOne<Track>()
+                .WithMany()
+                .HasForeignKey(e => e.TrackId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(e => new { e.UserId, e.TrackId, e.ListenedAt })
                 .IsUnique();
         }
     }

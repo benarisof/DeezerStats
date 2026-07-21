@@ -1,6 +1,8 @@
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
 using DeezerStats.Domain.Aggregates.UserAggregate;
-using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
@@ -64,11 +66,6 @@ namespace DeezerStats.Infrastructure.Persistence
             // Track.Isrc
             modelBuilder.Entity<Track>()
                 .Property(t => t.Isrc)
-                .HasConversion(isrcConverter);
-
-            // ListeningEvent.Isrc
-            modelBuilder.Entity<ListeningEvent>()
-                .Property(le => le.Isrc)
                 .HasConversion(isrcConverter);
 
             // User.Email

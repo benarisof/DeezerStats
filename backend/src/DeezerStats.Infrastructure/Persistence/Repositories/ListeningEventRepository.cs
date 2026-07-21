@@ -1,6 +1,5 @@
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Domain.Entities;
-using DeezerStats.Domain.ValueObjects;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using Microsoft.EntityFrameworkCore;
 
 namespace DeezerStats.Infrastructure.Persistence.Repositories;
@@ -18,35 +17,35 @@ public class ListeningEventRepository(ApplicationDbContext context) : IListening
         await _context.ListeningEvents.AddRangeAsync(events, ct);
     }
 
-    public async Task<bool> ExistsAsync(Guid userId, Isrc isrc, DateTime listenedAt, CancellationToken ct = default)
+    public async Task<bool> ExistsAsync(Guid userId, Guid trackId, DateTime listenedAt, CancellationToken ct = default)
     {
         return await _context.ListeningEvents.AnyAsync(
-            e => e.UserId == userId && e.Isrc == isrc && e.ListenedAt == listenedAt,
+            e => e.UserId == userId && e.TrackId == trackId && e.ListenedAt == listenedAt,
             ct);
     }
 
-    public async Task<IReadOnlyDictionary<Isrc, HashSet<DateTime>>> GetExistingListenedAtsAsync(
+    public async Task<IReadOnlyDictionary<Guid, HashSet<DateTime>>> GetExistingListenedAtsAsync(
         Guid userId,
-        IEnumerable<Isrc> isrcs,
+        IEnumerable<Guid> trackIds,
         CancellationToken ct = default)
     {
-        List<Isrc> isrcList = isrcs.Distinct().ToList();
-        if (isrcList.Count == 0)
+        List<Guid> trackIdList = trackIds.Distinct().ToList();
+        if (trackIdList.Count == 0)
         {
-            return new Dictionary<Isrc, HashSet<DateTime>>();
+            return new Dictionary<Guid, HashSet<DateTime>>();
         }
 
         List<ListeningEvent> existingEvents = await _context.ListeningEvents
-            .Where(e => e.UserId == userId && isrcList.Contains(e.Isrc))
+            .Where(e => e.UserId == userId && trackIdList.Contains(e.TrackId))
             .ToListAsync(ct);
 
-        var result = new Dictionary<Isrc, HashSet<DateTime>>();
+        var result = new Dictionary<Guid, HashSet<DateTime>>();
         foreach (ListeningEvent listeningEvent in existingEvents)
         {
-            if (!result.TryGetValue(listeningEvent.Isrc, out HashSet<DateTime>? dates))
+            if (!result.TryGetValue(listeningEvent.TrackId, out HashSet<DateTime>? dates))
             {
                 dates = [];
-                result[listeningEvent.Isrc] = dates;
+                result[listeningEvent.TrackId] = dates;
             }
 
             dates.Add(listeningEvent.ListenedAt);

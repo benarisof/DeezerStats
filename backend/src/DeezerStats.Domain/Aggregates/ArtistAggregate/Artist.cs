@@ -1,6 +1,6 @@
 using DeezerStats.Domain.SeedWork;
 
-namespace DeezerStats.Domain.Entities
+namespace DeezerStats.Domain.Aggregates.ArtistAggregate
 {
     /// <summary>
     /// Représente un artiste musical.

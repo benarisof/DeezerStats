@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

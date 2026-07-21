@@ -1,8 +1,8 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using DeezerStats.Domain.SeedWork;
 using FluentAssertions;
 
-namespace DeezerStats.Domain.UnitTests.Entities
+namespace DeezerStats.Domain.UnitTests.Aggregates
 {
     public class ArtistTests
     {

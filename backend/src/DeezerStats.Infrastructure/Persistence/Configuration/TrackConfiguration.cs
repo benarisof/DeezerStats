@@ -1,5 +1,6 @@
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
-using DeezerStats.Domain.Entities;
 using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;

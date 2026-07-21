@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.ValueObjects;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Repositories;
@@ -17,14 +17,13 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new ListeningEventRepository(context);
 
             var userId = Guid.NewGuid();
-            var isrc = new Isrc("FR6V81100021");
+            var trackId = Guid.NewGuid();
             DateTime listenedAt = DateTime.UtcNow;
 
             var listeningEvent = new ListeningEvent(
                 id: Guid.NewGuid(),
                 userId: userId,
-                trackId: Guid.NewGuid(),
-                isrc: isrc,
+                trackId: trackId,
                 listeningDuration: new Duration(200),
                 listenedAt: listenedAt);
 
@@ -35,14 +34,14 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             await context.SaveChangesAsync();
 
             // Act
-            var exists = await repository.ExistsAsync(userId, isrc, listenedAt);
+            var exists = await repository.ExistsAsync(userId, trackId, listenedAt);
 
             // Assert
             exists.Should().BeTrue();
         }
 
         [Fact]
-        public async Task GetExistingListenedAtsAsyncShouldReturnOnlyMatchingUserAndIsrcs()
+        public async Task GetExistingListenedAtsAsyncShouldReturnOnlyMatchingUserAndTrackIds()
         {
             // Arrange
             using ApplicationDbContext context = CreateInMemoryDbContext();
@@ -50,41 +49,41 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             var userId = Guid.NewGuid();
             var otherUserId = Guid.NewGuid();
-            var isrcA = new Isrc("FR6V81100021");
-            var isrcB = new Isrc("USUM71607007");
+            var trackIdA = Guid.NewGuid();
+            var trackIdB = Guid.NewGuid();
             DateTime firstListen = DateTime.UtcNow.AddDays(-2);
             DateTime secondListen = DateTime.UtcNow.AddDays(-1);
 
             await repository.AddRangeAsync([
-                new ListeningEvent(Guid.NewGuid(), userId, Guid.NewGuid(), isrcA, new Duration(200), firstListen),
-                new ListeningEvent(Guid.NewGuid(), userId, Guid.NewGuid(), isrcA, new Duration(200), secondListen),
-                new ListeningEvent(Guid.NewGuid(), userId, Guid.NewGuid(), isrcB, new Duration(180), firstListen),
+                new ListeningEvent(Guid.NewGuid(), userId, trackIdA, new Duration(200), firstListen),
+                new ListeningEvent(Guid.NewGuid(), userId, trackIdA, new Duration(200), secondListen),
+                new ListeningEvent(Guid.NewGuid(), userId, trackIdB, new Duration(180), firstListen),
 
                 // Ne doit pas être pris en compte : appartient à un autre utilisateur.
-                new ListeningEvent(Guid.NewGuid(), otherUserId, Guid.NewGuid(), isrcA, new Duration(200), firstListen),
+                new ListeningEvent(Guid.NewGuid(), otherUserId, trackIdA, new Duration(200), firstListen),
             ]);
             await context.SaveChangesAsync();
 
             // Act
-            IReadOnlyDictionary<Isrc, HashSet<DateTime>> result =
-                await repository.GetExistingListenedAtsAsync(userId, [isrcA, isrcB]);
+            IReadOnlyDictionary<Guid, HashSet<DateTime>> result =
+                await repository.GetExistingListenedAtsAsync(userId, [trackIdA, trackIdB]);
 
             // Assert
-            result.Should().ContainKey(isrcA);
-            result[isrcA].Should().BeEquivalentTo([firstListen, secondListen]);
-            result.Should().ContainKey(isrcB);
-            result[isrcB].Should().BeEquivalentTo([firstListen]);
+            result.Should().ContainKey(trackIdA);
+            result[trackIdA].Should().BeEquivalentTo([firstListen, secondListen]);
+            result.Should().ContainKey(trackIdB);
+            result[trackIdB].Should().BeEquivalentTo([firstListen]);
         }
 
         [Fact]
-        public async Task GetExistingListenedAtsAsyncWithNoIsrcsShouldReturnEmptyDictionary()
+        public async Task GetExistingListenedAtsAsyncWithNoTrackIdsShouldReturnEmptyDictionary()
         {
             // Arrange
             using ApplicationDbContext context = CreateInMemoryDbContext();
             var repository = new ListeningEventRepository(context);
 
             // Act
-            IReadOnlyDictionary<Isrc, HashSet<DateTime>> result =
+            IReadOnlyDictionary<Guid, HashSet<DateTime>> result =
                 await repository.GetExistingListenedAtsAsync(Guid.NewGuid(), []);
 
             // Assert

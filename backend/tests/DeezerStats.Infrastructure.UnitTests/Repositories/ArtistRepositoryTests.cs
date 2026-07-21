@@ -1,4 +1,4 @@
-using DeezerStats.Domain.Entities;
+using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Repositories;
 using FluentAssertions;

@@ -25,7 +25,7 @@ namespace DeezerStats.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("DeezerStats.Domain.Entities.Album", b =>
+            modelBuilder.Entity("DeezerStats.Domain.Aggregates.AlbumAggregate.Album", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -59,7 +59,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     b.ToTable("Albums");
                 });
 
-            modelBuilder.Entity("DeezerStats.Domain.Entities.Artist", b =>
+            modelBuilder.Entity("DeezerStats.Domain.Aggregates.ArtistAggregate.Artist", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -84,7 +84,7 @@ namespace DeezerStats.Infrastructure.Migrations
                     b.ToTable("Artists");
                 });
 
-            modelBuilder.Entity("DeezerStats.Domain.Entities.ListeningEvent", b =>
+            modelBuilder.Entity("DeezerStats.Domain.Aggregates.ListeningEventAggregate.ListeningEvent", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -183,13 +183,13 @@ namespace DeezerStats.Infrastructure.Migrations
 
             modelBuilder.Entity("DeezerStats.Domain.Aggregates.TrackAggregate.Track", b =>
                 {
-                    b.HasOne("DeezerStats.Domain.Entities.Album", null)
+                    b.HasOne("DeezerStats.Domain.Aggregates.AlbumAggregate.Album", null)
                         .WithMany()
                         .HasForeignKey("AlbumId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("DeezerStats.Domain.Entities.Artist", null)
+                    b.HasOne("DeezerStats.Domain.Aggregates.ArtistAggregate.Artist", null)
                         .WithMany()
                         .HasForeignKey("ArtistId")
                         .OnDelete(DeleteBehavior.Restrict)
