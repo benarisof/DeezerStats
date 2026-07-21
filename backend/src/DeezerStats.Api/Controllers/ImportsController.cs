@@ -1,6 +1,5 @@
-using System.IdentityModel.Tokens.Jwt;
 using DeezerStats.Application.DTOs;
-using DeezerStats.Application.UseCases.Imports;
+using DeezerStats.Application.UseCases.Import;
 using Microsoft.AspNetCore.Mvc;
 
 namespace DeezerStats.Api.Controllers;
@@ -13,7 +12,7 @@ namespace DeezerStats.Api.Controllers;
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces("application/json")]
-public class ImportsController(IImportListeningHistoryUseCase importListeningHistoryUseCase) : ControllerBase
+public class ImportsController(IImportListeningHistoryUseCase importListeningHistoryUseCase) : ApiControllerBase
 {
     /// <summary>
     /// Charge le fichier Excel mensuel d'historique d'écoute de l'utilisateur authentifié.
@@ -38,18 +37,5 @@ public class ImportsController(IImportListeningHistoryUseCase importListeningHis
             cancellationToken);
 
         return Ok(report);
-    }
-
-    private Guid GetAuthenticatedUserId()
-    {
-        var subject = User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value;
-
-        if (!Guid.TryParse(subject, out Guid userId))
-        {
-            throw new InvalidOperationException(
-                "Le token JWT ne contient pas d'identifiant utilisateur valide.");
-        }
-
-        return userId;
     }
 }

@@ -2,7 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using DeezerStats.Api.Controllers;
 using DeezerStats.Application.DTOs;
-using DeezerStats.Application.UseCases.Imports;
+using DeezerStats.Application.UseCases.Import;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

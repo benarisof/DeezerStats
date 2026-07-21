@@ -41,7 +41,7 @@ public class ListeningEventRepository(ApplicationDbContext context) : IListening
                 result[listeningEvent.TrackId] = dates;
             }
 
-            dates.Add(listeningEvent.ListenedAt);
+            dates!.Add(listeningEvent.ListenedAt);
         }
 
         return result;

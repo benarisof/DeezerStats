@@ -1,4 +1,4 @@
-using DeezerStats.Application.UseCases.Imports;
+using DeezerStats.Application.UseCases.Import;
 using FluentValidation;
 
 namespace DeezerStats.Application.Validation.Validators

@@ -83,7 +83,7 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 8.3 | Déclenchement de l'enrichissement en tâche de fond après un import (`IHostedService`/`Channel<T>`, pour ne pas bloquer la réponse HTTP) |
 | 8.4 | Tests avec `HttpClient` mocké (cache hit / cache miss / échec API Deezer) |
 
-## Phase 9 — Endpoints de consultation (stats, tops, historique, item) ⬜
+## Phase 9 — Endpoints de consultation (stats, tops, historique, item) ✅
 
 | # | Ticket |
 |---|--------|

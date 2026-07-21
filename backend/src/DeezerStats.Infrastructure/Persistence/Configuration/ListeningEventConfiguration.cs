@@ -31,6 +31,14 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
                 .OnDelete(DeleteBehavior.Restrict);
 
             builder.HasAlternateKey(e => new { e.UserId, e.TrackId, e.ListenedAt });
+
+            // Phase 9 (ticket 9.6) : les endpoints de consultation filtrent systématiquement par
+            // utilisateur puis par plage de ListenedAt (historique, tops) ou groupent par
+            // TrackId pour calculer les PlayCount (tops/pages item) — toujours scopés par
+            // utilisateur. Ces deux index composites couvrent ces deux familles de requêtes sans
+            // scanner la table entière.
+            builder.HasIndex(e => new { e.UserId, e.ListenedAt });
+            builder.HasIndex(e => new { e.UserId, e.TrackId });
         }
     }
 }

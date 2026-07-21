@@ -2,6 +2,7 @@ using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
+using DeezerStats.Application.Ports.Queries;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Infrastructure.Adapters.Deezer;
@@ -9,6 +10,7 @@ using DeezerStats.Infrastructure.Adapters.Excel;
 using DeezerStats.Infrastructure.Adapters.Security;
 using DeezerStats.Infrastructure.BackgroundJobs;
 using DeezerStats.Infrastructure.Persistence;
+using DeezerStats.Infrastructure.Persistence.Queries;
 using DeezerStats.Infrastructure.Persistence.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -36,6 +38,9 @@ namespace DeezerStats.Infrastructure
 
             // Unit of Work : permet aux cas d'usage multi-agrégats
             services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+            // Phase 9 — port de lecture des statistiques d'écoute (stats, tops, historique, item)
+            services.AddScoped<IListeningStatsQueryPort, ListeningStatsQueryService>();
 
             // Adapteurs
             services.AddScoped<IExcelParserPort, ClosedXmlExcelParser>();

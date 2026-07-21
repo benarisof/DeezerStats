@@ -1,6 +1,6 @@
 using DeezerStats.Application.DTOs;
 
-namespace DeezerStats.Application.UseCases.Imports
+namespace DeezerStats.Application.UseCases.Import
 {
     public interface IImportListeningHistoryUseCase
     {

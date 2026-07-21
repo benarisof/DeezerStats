@@ -10,7 +10,7 @@ using DeezerStats.Domain.Aggregates.TrackAggregate;
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 
-namespace DeezerStats.Application.UseCases.Imports
+namespace DeezerStats.Application.UseCases.Import
 {
     public class ImportListeningHistoryUseCase(
         IExcelParserPort excelParser,
@@ -105,7 +105,7 @@ namespace DeezerStats.Application.UseCases.Imports
 
                     var alreadyInDatabase = track != null
                         && existingListenedAtsByTrackId.TryGetValue(track.Id, out HashSet<DateTime>? listenedDates)
-                        && listenedDates.Contains(row.ListenedAt);
+                        && listenedDates?.Contains(row.ListenedAt) == true;
 
                     // Empêche aussi qu'une même ligne dupliquée deux fois DANS le fichier lui-même
                     // (par ex. export Deezer contenant deux fois la même écoute) ne soit comptée

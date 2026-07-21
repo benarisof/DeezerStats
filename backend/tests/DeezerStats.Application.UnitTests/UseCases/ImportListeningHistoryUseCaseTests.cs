@@ -3,7 +3,7 @@ using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
-using DeezerStats.Application.UseCases.Imports;
+using DeezerStats.Application.UseCases.Import;
 using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
