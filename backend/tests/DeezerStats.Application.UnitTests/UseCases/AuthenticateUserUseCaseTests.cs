@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
@@ -99,7 +100,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             Task Action() => _useCase.ExecuteAsync(command);
 
             // Assert
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            await Assert.ThrowsAsync<AuthenticationFailedException>(
                 Action);
 
             _passwordHasherMock.Verify(
@@ -144,7 +145,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             Task Action() => _useCase.ExecuteAsync(command);
 
             // Assert
-            await Assert.ThrowsAsync<UnauthorizedAccessException>(
+            await Assert.ThrowsAsync<AuthenticationFailedException>(
                 Action);
 
             _accessTokenGeneratorMock.Verify(

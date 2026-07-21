@@ -7,15 +7,21 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace DeezerStats.Api.Middleware
 {
-    public class ExceptionHandlingMiddleware(RequestDelegate next)
+    public class ExceptionHandlingMiddleware(RequestDelegate next, ILogger<ExceptionHandlingMiddleware> logger)
     {
-        // Instance unique, réutilisée pour toutes les sérialisations
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         };
 
+        private static readonly Action<ILogger, string?, string?, Exception?> _logUnexpectedError =
+            LoggerMessage.Define<string?, string?>(
+                logLevel: LogLevel.Error,
+                eventId: new EventId(1001, "UnexpectedError"),
+                formatString: "Erreur non gérée lors du traitement de la requête {Method} {Path}.");
+
         private readonly RequestDelegate _next = next;
+        private readonly ILogger<ExceptionHandlingMiddleware> _logger = logger;
 
         public async Task InvokeAsync(HttpContext context)
         {
@@ -29,7 +35,7 @@ namespace DeezerStats.Api.Middleware
             }
         }
 
-        private static Task HandleExceptionAsync(HttpContext context, Exception exception)
+        private Task HandleExceptionAsync(HttpContext context, Exception exception)
         {
             context.Response.ContentType = "application/problem+json";
 
@@ -57,6 +63,13 @@ namespace DeezerStats.Api.Middleware
                     Detail = conflictEx.Message,
                 },
 
+                AuthenticationFailedException authFailedEx => new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.Unauthorized,
+                    Title = "Authentification refusée",
+                    Detail = authFailedEx.Message,
+                },
+
                 DomainException domainEx => new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.BadRequest,
@@ -71,27 +84,24 @@ namespace DeezerStats.Api.Middleware
                     Detail = notFoundEx.Message,
                 },
 
-                UnauthorizedAccessException unauthEx => new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.Unauthorized,
-                    Title = "Non autorisé",
-                    Detail = unauthEx.Message,
-                },
-
-                _ => new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.InternalServerError,
-                    Title = "Erreur interne du serveur",
-                    Detail = "Une erreur inattendue est survenue. Veuillez réessayer ultérieurement.",
-                },
+                _ => HandleUnexpectedException(exception),
             };
 
             context.Response.StatusCode = problemDetails.Status!.Value;
-
-            // Utilisation de l'instance statique
             var json = JsonSerializer.Serialize(problemDetails, _jsonOptions);
-
             return context.Response.WriteAsync(json);
+        }
+
+        private ProblemDetails HandleUnexpectedException(Exception exception)
+        {
+            _logUnexpectedError(_logger, exception.Source, exception.TargetSite?.ToString(), exception);
+
+            return new ProblemDetails
+            {
+                Status = (int)HttpStatusCode.InternalServerError,
+                Title = "Erreur interne du serveur",
+                Detail = "Une erreur inattendue est survenue. Veuillez réessayer ultérieurement.",
+            };
         }
     }
 }

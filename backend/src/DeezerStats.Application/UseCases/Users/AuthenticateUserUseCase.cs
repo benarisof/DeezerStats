@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
@@ -28,8 +29,10 @@ namespace DeezerStats.Application.UseCases.Users
 
             var email = new Email(command.Email);
 
+            // AuthenticationFailedException (et non UnauthorizedAccessException) : voir
+            // AuthenticationFailedException.cs pour la justification de cette hiérarchie dédiée.
             User? user = await _userRepository
-                .GetByEmailAsync(email, ct) ?? throw new UnauthorizedAccessException(
+                .GetByEmailAsync(email, ct) ?? throw new AuthenticationFailedException(
                     "Email ou mot de passe invalide.");
             var isPasswordValid = _passwordHasher.Verify(
                 command.Password,
@@ -37,7 +40,7 @@ namespace DeezerStats.Application.UseCases.Users
 
             if (!isPasswordValid)
             {
-                throw new UnauthorizedAccessException(
+                throw new AuthenticationFailedException(
                     "Email ou mot de passe invalide.");
             }
 
