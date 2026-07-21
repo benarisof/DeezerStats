@@ -74,7 +74,7 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 7.3 | Mapping du rapport d'import (`ImportReport` : importedCount/skippedCount/errorCount/errors) |
 | 7.4 | Tests d'intégration avec fichier Excel réel contenant des doublons et des lignes invalides |
 
-## Phase 8 — Enrichissement Deezer ⬜
+## Phase 8 — Enrichissement Deezer ✅
 
 | # | Ticket |
 |---|--------|

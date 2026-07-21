@@ -36,5 +36,11 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
         }
 
         public async Task AddRangeAsync(IEnumerable<Artist> artists, CancellationToken ct = default) => await _context.Artists.AddRangeAsync(artists, ct);
+
+        public async Task UpdateAsync(Artist artist, CancellationToken ct = default)
+        {
+            _context.Artists.Update(artist);
+            await _context.SaveChangesAsync(ct);
+        }
     }
 }

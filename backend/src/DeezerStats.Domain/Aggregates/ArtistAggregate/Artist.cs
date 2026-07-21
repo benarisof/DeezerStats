@@ -47,6 +47,13 @@ namespace DeezerStats.Domain.Aggregates.ArtistAggregate
         public string? CoverUrl { get; private set; }
 
         /// <summary>
+        /// Obtient une valeur indiquant si règle métier : indique si l'artiste possède déjà la
+        /// donnée enrichie par Deezer (seule la couverture est enrichissable pour un artiste,
+        /// contrairement à un morceau ou un album — voir Track.IsEnriched/Album.IsEnriched).
+        /// </summary>
+        public bool IsEnriched => !string.IsNullOrWhiteSpace(CoverUrl);
+
+        /// <summary>
         /// Normalise un nom d'artiste pour la comparaison/recherche (insensible à la casse et aux
         /// espaces superflus en début/fin de chaîne).
         /// </summary>
@@ -55,10 +62,10 @@ namespace DeezerStats.Domain.Aggregates.ArtistAggregate
         public static string Normalize(string name) => name.Trim().ToLowerInvariant();
 
         /// <summary>
-        /// Met à jour l'URL de couverture de l'artiste.
+        /// Méthode d'enrichissement appelée lors du retour de l'API Deezer.
         /// </summary>
-        /// <param name="coverUrl">Nouvelle URL de la couverture.</param>
-        public void EnrichCover(string coverUrl)
+        /// <param name="coverUrl">L'URL de la couverture de l'artiste récupérée depuis Deezer.</param>
+        public void EnrichCover(string? coverUrl)
         {
             if (!string.IsNullOrWhiteSpace(coverUrl))
             {

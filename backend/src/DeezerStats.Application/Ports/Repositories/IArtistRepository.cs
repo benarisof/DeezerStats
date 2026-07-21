@@ -55,5 +55,13 @@ namespace DeezerStats.Application.Ports.Repositories
         /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
         /// <returns>Une tâche représentant l'opération asynchrone.</returns>
         public Task AddRangeAsync(IEnumerable<Artist> artists, CancellationToken ct = default);
+
+        /// <summary>
+        /// Met à jour un artiste existant dans la base de données.
+        /// </summary>
+        /// <param name="artist">Artiste contenant les données modifiées.</param>
+        /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
+        /// <returns>Une tâche représentant l'opération asynchrone.</returns>
+        public Task UpdateAsync(Artist artist, CancellationToken ct = default);
     }
 }

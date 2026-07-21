@@ -6,7 +6,7 @@ namespace DeezerStats.Application.UseCases.Tracks
 {
     public class GetOrEnrichTrackUseCase(
         ITrackRepository trackRepository,
-        IDeezerEnrichmentPort deezerPort)
+        IDeezerEnrichmentPort deezerPort) : IGetOrEnrichTrackUseCase
     {
         private readonly ITrackRepository _trackRepository = trackRepository;
         private readonly IDeezerEnrichmentPort _deezerPort = deezerPort;

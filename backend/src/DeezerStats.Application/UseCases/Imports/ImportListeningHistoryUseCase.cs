@@ -1,5 +1,6 @@
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports;
+using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.AlbumAggregate;
@@ -17,7 +18,8 @@ namespace DeezerStats.Application.UseCases.Imports
         ITrackRepository trackRepository,
         IArtistRepository artistRepository,
         IAlbumRepository albumRepository,
-        IUnitOfWork unitOfWork) : IImportListeningHistoryUseCase
+        IUnitOfWork unitOfWork,
+        IEnrichmentJobScheduler enrichmentQueue) : IImportListeningHistoryUseCase
     {
         private readonly IExcelParserPort _excelParser = excelParser;
         private readonly IListeningEventRepository _listeningEventRepository = listeningEventRepository;
@@ -25,6 +27,7 @@ namespace DeezerStats.Application.UseCases.Imports
         private readonly IArtistRepository _artistRepository = artistRepository;
         private readonly IAlbumRepository _albumRepository = albumRepository;
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
+        private readonly IEnrichmentJobScheduler _enrichmentQueue = enrichmentQueue;
 
         public async Task<ImportReport> ExecuteAsync(ImportListeningHistoryCommand command, CancellationToken ct = default)
         {
@@ -170,6 +173,27 @@ namespace DeezerStats.Application.UseCases.Imports
             if (newArtists.Count > 0 || newAlbums.Count > 0 || newTracks.Count > 0 || newEvents.Count > 0)
             {
                 await _unitOfWork.SaveChangesAsync(ct);
+
+                // Étape 7 : maintenant que le lot est persisté avec succès, on planifie
+                // l'enrichissement Deezer des nouveaux artistes/albums/morceaux en tâche de fond
+                // (voir EnrichmentBackgroundService), sans attendre son résultat, conformément au
+                // contrat OpenAPI de POST /imports. Seules les entités nouvellement créées par CET
+                // import sont concernées : un artiste/album/morceau déjà connu du catalogue a déjà
+                // été (ou sera) enrichi par un import précédent.
+                foreach (Artist newArtist in newArtists.Values)
+                {
+                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForArtist(newArtist.Id), ct);
+                }
+
+                foreach (Album newAlbum in newAlbums.Values)
+                {
+                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForAlbum(newAlbum.Id), ct);
+                }
+
+                foreach (Track newTrack in newTracks)
+                {
+                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForTrack(newTrack.Isrc), ct);
+                }
             }
 
             return new ImportReport(

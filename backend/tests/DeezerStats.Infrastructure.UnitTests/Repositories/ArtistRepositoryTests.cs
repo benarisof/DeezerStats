@@ -118,10 +118,41 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             afterSave.Should().NotBeNull();
         }
 
-        private static ApplicationDbContext CreateInMemoryDbContext()
+        [Fact]
+        public async Task UpdateAsyncShouldPersistEnrichedCoverUrl()
+        {
+            // Arrange : reproduit le scénario de GetOrEnrichArtistUseCase — l'artiste est d'abord
+            // persisté sans photo, puis mis à jour après l'appel à Deezer. Un second DbContext
+            // (même base nommée) est utilisé pour la relecture, afin de vérifier une réelle
+            // persistance plutôt que le simple suivi en mémoire du ChangeTracker de l'instance
+            // ayant fait la mise à jour.
+            var databaseName = Guid.NewGuid().ToString();
+            var artistId = Guid.NewGuid();
+
+            using (ApplicationDbContext writeContext = CreateInMemoryDbContext(databaseName))
+            {
+                var writeRepository = new ArtistRepository(writeContext);
+                var artist = new Artist(artistId, "Daft Punk");
+                await writeRepository.AddAsync(artist);
+
+                // Act
+                artist.EnrichCover("https://cdn-images.deezer.com/artist-cover.jpg");
+                await writeRepository.UpdateAsync(artist);
+            }
+
+            // Assert
+            using ApplicationDbContext readContext = CreateInMemoryDbContext(databaseName);
+            Artist? retrieved = await new ArtistRepository(readContext).GetByIdAsync(artistId);
+
+            retrieved.Should().NotBeNull();
+            retrieved!.CoverUrl.Should().Be("https://cdn-images.deezer.com/artist-cover.jpg");
+            retrieved.IsEnriched.Should().BeTrue();
+        }
+
+        private static ApplicationDbContext CreateInMemoryDbContext(string? databaseName = null)
         {
             DbContextOptions<ApplicationDbContext> options = new DbContextOptionsBuilder<ApplicationDbContext>()
-                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .UseInMemoryDatabase(databaseName: databaseName ?? Guid.NewGuid().ToString())
                 .Options;
 
             return new ApplicationDbContext(options);

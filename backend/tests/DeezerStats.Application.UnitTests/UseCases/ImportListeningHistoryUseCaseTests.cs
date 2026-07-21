@@ -1,5 +1,6 @@
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports;
+using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Imports;
@@ -21,6 +22,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
         private readonly IAlbumRepository _albumRepository = Substitute.For<IAlbumRepository>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+        private readonly IEnrichmentJobScheduler _enrichmentQueue = Substitute.For<IEnrichmentJobScheduler>();
 
         private readonly ImportListeningHistoryUseCase _useCase;
 
@@ -32,7 +34,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 _trackRepository,
                 _artistRepository,
                 _albumRepository,
-                _unitOfWork);
+                _unitOfWork,
+                _enrichmentQueue);
 
             _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Track>)[]);
@@ -86,6 +89,19 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 Arg.Is<IEnumerable<ListeningEvent>>(events => events != null && events.Count() == 1),
                 Arg.Any<CancellationToken>());
             await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+
+            // Vérification : le nouvel artiste, son nouvel album ET son nouveau morceau sont
+            // planifiés pour un enrichissement Deezer en arrière-plan (voir
+            // EnrichmentBackgroundService).
+            await _enrichmentQueue.Received(1).EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForArtist),
+                Arg.Any<CancellationToken>());
+            await _enrichmentQueue.Received(1).EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForAlbum),
+                Arg.Any<CancellationToken>());
+            await _enrichmentQueue.Received(1).EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForTrack),
+                Arg.Any<CancellationToken>());
         }
 
         [Fact]
@@ -121,6 +137,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             await _listeningRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
             await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
+            await _enrichmentQueue.DidNotReceiveWithAnyArgs().EnqueueAsync(default!, default);
         }
 
         [Fact]
@@ -236,6 +253,18 @@ namespace DeezerStats.Application.UnitTests.UseCases
             await _trackRepository.Received(1).AddRangeAsync(
                 Arg.Is<IEnumerable<Track>>(tracks => tracks != null && tracks.Single().ArtistId == existingArtist.Id
                     && tracks.Single().AlbumId == existingAlbum.Id),
+                Arg.Any<CancellationToken>());
+
+            // Vérification : ni l'artiste ni l'album, déjà connus du catalogue, ne sont replanifiés
+            // pour un enrichissement Deezer — seul le nouveau morceau l'est.
+            await _enrichmentQueue.DidNotReceive().EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForArtist),
+                Arg.Any<CancellationToken>());
+            await _enrichmentQueue.DidNotReceive().EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForAlbum),
+                Arg.Any<CancellationToken>());
+            await _enrichmentQueue.Received(1).EnqueueAsync(
+                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForTrack),
                 Arg.Any<CancellationToken>());
         }
     }
