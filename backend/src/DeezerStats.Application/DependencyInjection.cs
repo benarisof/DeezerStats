@@ -26,8 +26,6 @@ namespace DeezerStats.Application
             // est validée (voir WebApplicationFactory en tests d'intégration, qui active
             // ServiceProviderOptions.ValidateOnBuild — c'est exactement ce qui a révélé ce problème).
             // À réactiver quand la Phase 8 fournira le vrai adaptateur, en même temps que son
-            // enregistrement côté Infrastructure.DependencyInjection.
-
             return services;
         }
     }
