@@ -1,8 +1,8 @@
+using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
 using DeezerStats.Domain.Aggregates.UserAggregate;
-using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
 using FluentValidation;
 using FluentValidation.Results;
@@ -95,8 +95,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // Act
             Task<User> Action() => _useCase.ExecuteAsync(command);
 
-            // Assert
-            DomainException exception = await Assert.ThrowsAsync<DomainException>((Func<Task<User>>)Action);
+            // Assert : ConflictException (409), pas DomainException (400) — voir ConflictException.cs.
+            ConflictException exception = await Assert.ThrowsAsync<ConflictException>((Func<Task<User>>)Action);
 
             Assert.Equal(
                 "Un utilisateur existe déjà avec cette adresse email.",

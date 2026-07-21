@@ -50,6 +50,13 @@ namespace DeezerStats.Api.Middleware
                     },
                 },
 
+                ConflictException conflictEx => new ProblemDetails
+                {
+                    Status = (int)HttpStatusCode.Conflict,
+                    Title = "Conflit",
+                    Detail = conflictEx.Message,
+                },
+
                 DomainException domainEx => new ProblemDetails
                 {
                     Status = (int)HttpStatusCode.BadRequest,

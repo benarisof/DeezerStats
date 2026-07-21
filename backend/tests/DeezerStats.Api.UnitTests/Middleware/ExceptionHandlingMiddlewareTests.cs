@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using DeezerStats.Api.Middleware;
+using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Domain.SeedWork;
 using FluentAssertions;
 using FluentValidation;
@@ -37,6 +38,29 @@ namespace DeezerStats.Api.UnitTests.Middleware
             problemDetails.Should().NotBeNull();
             problemDetails!.Title.Should().Be("Violation de règle métier");
             problemDetails.Detail.Should().Be("L'ISRC fourni est invalide.");
+        }
+
+        [Fact]
+        public async Task InvokeAsyncWhenConflictExceptionIsThrownShouldReturn409ConflictWithProblemDetails()
+        {
+            // Arrange : c'est notamment le cas de "email déjà utilisé" à l'inscription, qui doit
+            // être distingué d'une simple erreur de validation (voir RegisterUserUseCase).
+            static async Task Next(HttpContext ctx) => throw new ConflictException("Un utilisateur existe déjà avec cette adresse email.");
+
+            var middleware = new ExceptionHandlingMiddleware(Next);
+            var context = new DefaultHttpContext();
+            context.Response.Body = new MemoryStream();
+
+            // Act
+            await middleware.InvokeAsync(context);
+
+            // Assert
+            context.Response.StatusCode.Should().Be((int)HttpStatusCode.Conflict);
+
+            ProblemDetails? problemDetails = await ReadProblemDetailsAsync(context);
+            problemDetails.Should().NotBeNull();
+            problemDetails!.Title.Should().Be("Conflit");
+            problemDetails.Detail.Should().Be("Un utilisateur existe déjà avec cette adresse email.");
         }
 
         [Fact]

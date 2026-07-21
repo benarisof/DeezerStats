@@ -49,7 +49,11 @@ services:
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-deezerstats};Username=${POSTGRES_USER:-deezerstats};Password=${POSTGRES_PASSWORD:-deezerstats_dev_only}"
       Meilisearch__Url: "http://meilisearch:7700"
       Meilisearch__MasterKey: ${MEILI_MASTER_KEY:-dev_master_key_change_me}
-      Jwt__Secret: ${JWT_SECRET:-dev_only_change_me_in_every_other_environment}
+      # NB : corrigé de "Jwt__Secret" à "Jwt__Key" — la propriété liée par JwtSettings s'appelle
+      # "Key" (voir JwtSettings.cs). Avec "Jwt__Secret", cette variable n'était jamais prise en
+      # compte : l'API retombait silencieusement sur la valeur par défaut d'appsettings.json.
+      Jwt__Key: ${JWT_SECRET:-dev_only_change_me_in_every_other_environment}
+      Cors__AllowedOrigins__0: "http://localhost:${FRONTEND_PORT:-5173}"
     ports:
       - "${API_PORT:-5231}:8080"
     volumes:
