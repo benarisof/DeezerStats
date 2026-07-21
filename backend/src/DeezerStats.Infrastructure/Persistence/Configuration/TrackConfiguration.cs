@@ -1,7 +1,6 @@
 using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
-using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,9 +16,7 @@ public class TrackConfiguration : IEntityTypeConfiguration<Track>
 
         // Conversion du Value Object Isrc -> string avec type fixe
         builder.Property(t => t.Isrc)
-            .HasConversion(
-                isrc => isrc.Value,
-                value => new Isrc(value))
+            .HasConversion(DomainValueConverters.IsrcConverter)
             .HasColumnType("char(12)")
             .IsRequired();
 
@@ -31,9 +28,7 @@ public class TrackConfiguration : IEntityTypeConfiguration<Track>
 
         // Conversion du Value Object Duration -> int (secondes)
         builder.Property(t => t.Duration)
-            .HasConversion(
-                d => d != null ? d.TotalSeconds : (int?)null,
-                sec => sec.HasValue ? new Duration(sec.Value) : null);
+            .HasConversion(DomainValueConverters.NullableDurationConverter);
 
         builder.Property(t => t.CoverUrl)
             .HasMaxLength(500);

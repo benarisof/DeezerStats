@@ -13,6 +13,10 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
                 .IsRequired();
 
             builder.HasAlternateKey(a => new { a.ArtistId, a.NormalizedTitle });
+
+            // Conversion du Value Object Duration -> int (secondes)
+            builder.Property(a => a.Duration)
+                .HasConversion(DomainValueConverters.NullableDurationConverter);
         }
     }
 }

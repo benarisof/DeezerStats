@@ -1,6 +1,5 @@
 using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
-using DeezerStats.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -18,9 +17,7 @@ namespace DeezerStats.Infrastructure.Persistence.Configuration
             builder.Property(e => e.TrackId).IsRequired();
 
             builder.Property(e => e.ListeningDuration)
-                .HasConversion(
-                    d => d.TotalSeconds,
-                    sec => new Duration(sec))
+                .HasConversion(DomainValueConverters.DurationConverter)
                 .IsRequired();
 
             builder.Property(e => e.ListenedAt)
