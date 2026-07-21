@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Domain.Aggregates.UserAggregate;
 using DeezerStats.Domain.ValueObjects;
 using DeezerStats.Infrastructure.Persistence;
@@ -61,6 +62,30 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Assert
             retrieved.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task AddAsyncWithDuplicateEmailShouldThrowConflictException()
+        {
+            // Arrange : Email est configuré comme clé alternative (voir UserConfiguration), le filet
+            // de sécurité en base contre les doublons de compte même si le contrôle applicatif de
+            // RegisterUserUseCase (GetByEmailAsync) est contourné par une course concurrente. Ici, les
+            // deux entités étant suivies par le même DbContext, EF Core détecte le conflit dès l'ajout
+            // (identity map du ChangeTracker), avant même SaveChanges : une InvalidOperationException,
+            // que UserRepository.AddAsync traduit en ConflictException pour préserver le contrat 409
+            // de l'API. Dans un scénario réel de deux requêtes HTTP concurrentes utilisant chacune
+            // leur propre DbContext, c'est la contrainte d'unicité en base qui interviendrait, avec
+            // une DbUpdateException — traduite de la même façon.
+            using ApplicationDbContext context = CreateInMemoryDbContext();
+            var repository = new UserRepository(context);
+            await repository.AddAsync(new User(Guid.NewGuid(), new Email("alex@example.com"), "hash1", "Alex"));
+
+            // Act
+            Func<Task> act = () => repository.AddAsync(
+                new User(Guid.NewGuid(), new Email("alex@example.com"), "hash2", "Alex Bis"));
+
+            // Assert
+            await act.Should().ThrowAsync<ConflictException>();
         }
 
         private static ApplicationDbContext CreateInMemoryDbContext()
