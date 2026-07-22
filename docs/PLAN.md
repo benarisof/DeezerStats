@@ -55,15 +55,15 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 5.1 | Pipeline FluentValidation (validators par commande) | ✅ |
 | 5.2 | Middleware global de gestion des exceptions → `ProblemDetails` (RFC 7807) | ✅ |
 
-## Phase 6 — Authentification complète 🔶
+## Phase 6 — Authentification complète ✅
 
 | # | Ticket | Statut |
 |---|--------|--------|
 | 6.1 | `POST /auth/register`, `POST /auth/login` | ✅ |
-| 6.2 | Entité refresh token (rotation) + `POST /auth/refresh` | ⬜ |
-| 6.3 | `POST /auth/logout` (révocation du refresh token courant) | ⬜ |
-| 6.4 | `GET /auth/me` + middleware `JwtBearer` + `[Authorize]` global par défaut | ⬜ |
-| 6.5 | Tests d'intégration du parcours register → login → refresh → logout | ⬜ |
+| 6.2 | Entité refresh token (rotation) + `POST /auth/refresh` | ✅ |
+| 6.3 | `POST /auth/logout` (révocation du refresh token courant) | ✅ |
+| 6.4 | `GET /auth/me` + middleware `JwtBearer` + `[Authorize]` global par défaut | ✅ |
+| 6.5 | Tests d'intégration du parcours register → login → refresh → logout | ✅ |
 
 ## Phase 7 — Import Excel bout-en-bout ✅
 
@@ -148,7 +148,7 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 
 ## Prochaine étape suggérée
 
-La Phase 6 (authentification) est à finaliser en premier : elle bloque la Phase 9 (endpoints protégés)
-et la Phase 11 (frontend auth). Une fois 6 terminée, les phases 7/8/9/10 peuvent avancer en parallèle
-côté backend (import → enrichissement → consultation → recherche), pendant que le frontend (11/12)
-se développe contre le contrat OpenAPI.
+La Phase 6 (authentification) est terminée : elle débloquait la Phase 9 (endpoints protégés) et la
+Phase 11 (frontend auth). Les phases 7/8/9/10 sont également faites côté backend (import →
+enrichissement → consultation → recherche) ; il reste à démarrer le frontend (phases 11/12) contre le
+contrat OpenAPI, puis la phase 13 (qualité/perf/e2e) et la phase 14 (déploiement).
