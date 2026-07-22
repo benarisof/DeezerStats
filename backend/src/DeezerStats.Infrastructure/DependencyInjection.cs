@@ -2,16 +2,19 @@ using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
+using DeezerStats.Application.Ports.ExternalServices.Search;
 using DeezerStats.Application.Ports.Queries;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Infrastructure.Adapters.Deezer;
 using DeezerStats.Infrastructure.Adapters.Excel;
+using DeezerStats.Infrastructure.Adapters.Search;
 using DeezerStats.Infrastructure.Adapters.Security;
 using DeezerStats.Infrastructure.BackgroundJobs;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Queries;
 using DeezerStats.Infrastructure.Persistence.Repositories;
+using Meilisearch;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -77,6 +80,23 @@ namespace DeezerStats.Infrastructure
                 .Bind(configuration.GetSection(JwtSettings.SectionName))
                 .ValidateOnStart();
             services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
+
+            // Enregistrement des Options
+            services.Configure<MeilisearchOptions>(configuration.GetSection(MeilisearchOptions.SectionName));
+
+            // Enregistrement du Client Meilisearch en Singleton
+            services.AddSingleton(sp =>
+            {
+                MeilisearchOptions options = configuration.GetSection(MeilisearchOptions.SectionName).Get<MeilisearchOptions>()
+                    ?? throw new InvalidOperationException($"La configuration '{MeilisearchOptions.SectionName}' est introuvable ou mal formatée.");
+                return new MeilisearchClient(options.Url, options.MasterKey);
+            });
+
+            // Enregistrement de l'Adaptateur
+            services.AddScoped<ISearchEnginePort, MeilisearchAdapter>();
+
+            // Enregistrement du service d'initialisation au démarrage
+            services.AddHostedService<MeilisearchInitializerService>();
 
             return services;
         }

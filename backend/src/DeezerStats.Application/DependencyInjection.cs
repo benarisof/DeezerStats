@@ -1,6 +1,7 @@
 using DeezerStats.Application.UseCases.Albums;
 using DeezerStats.Application.UseCases.Artists;
 using DeezerStats.Application.UseCases.Import;
+using DeezerStats.Application.UseCases.Search;
 using DeezerStats.Application.UseCases.Stats.Album;
 using DeezerStats.Application.UseCases.Stats.Artist;
 using DeezerStats.Application.UseCases.Stats.History;
@@ -26,8 +27,6 @@ namespace DeezerStats.Application
             services.AddScoped<IGetOrEnrichTrackUseCase, GetOrEnrichTrackUseCase>();
             services.AddScoped<IGetOrEnrichAlbumUseCase, GetOrEnrichAlbumUseCase>();
             services.AddScoped<IGetOrEnrichArtistUseCase, GetOrEnrichArtistUseCase>();
-
-            // Phase 9 — Endpoints de consultation (stats, tops, historique, item)
             services.AddScoped<IGetHomeStatsUseCase, GetHomeStatsUseCase>();
             services.AddScoped<IGetTopAlbumsUseCase, GetTopAlbumsUseCase>();
             services.AddScoped<IGetTopArtistsUseCase, GetTopArtistsUseCase>();
@@ -35,7 +34,8 @@ namespace DeezerStats.Application
             services.AddScoped<IGetHistoryUseCase, GetHistoryUseCase>();
             services.AddScoped<IGetAlbumDetailUseCase, GetAlbumDetailUseCase>();
             services.AddScoped<IGetArtistDetailUseCase, GetArtistDetailUseCase>();
-
+            services.AddScoped<IGetSearchSuggestionsUseCase, GetSearchSuggestionsUseCase>();
+            services.AddScoped<ISearchCatalogUseCase, SearchCatalogUseCase>();
             return services;
         }
     }

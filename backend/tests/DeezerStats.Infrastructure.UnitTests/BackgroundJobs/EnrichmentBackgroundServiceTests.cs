@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using DeezerStats.Application.Ports.BackgroundJobs;
+using DeezerStats.Application.Ports.ExternalServices.Search;
+using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Albums;
 using DeezerStats.Application.UseCases.Artists;
 using DeezerStats.Application.UseCases.Tracks;
@@ -123,6 +125,8 @@ namespace DeezerStats.Infrastructure.UnitTests.BackgroundJobs
             services.AddScoped(_ => trackUseCase);
             services.AddScoped(_ => albumUseCase);
             services.AddScoped(_ => artistUseCase);
+            services.AddScoped(_ => Substitute.For<ISearchEnginePort>());
+            services.AddScoped(_ => Substitute.For<IArtistRepository>());
             ServiceProvider provider = services.BuildServiceProvider();
 
             return new EnrichmentBackgroundService(
