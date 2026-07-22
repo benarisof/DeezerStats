@@ -26,7 +26,7 @@ namespace DeezerStats.Application.UseCases.Stats.Home
             IReadOnlyList<ArtistSummary> topArtists = await CoverEnrichmentHelper.EnrichCoversAsync(result.TopArtists, _enrichmentCoordinator, ct);
             IReadOnlyList<TrackSummary> topTracks = await CoverEnrichmentHelper.EnrichCoversAsync(result.TopTracks, _enrichmentCoordinator, ct);
 
-            bool unchanged = ReferenceEquals(topAlbums, result.TopAlbums)
+            var unchanged = ReferenceEquals(topAlbums, result.TopAlbums)
                 && ReferenceEquals(topArtists, result.TopArtists)
                 && ReferenceEquals(topTracks, result.TopTracks);
 

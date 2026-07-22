@@ -59,7 +59,7 @@ namespace DeezerStats.Infrastructure.Adapters.Excel
                 // est traitée comme déjà exprimée en UTC. Nécessaire pour Npgsql, qui refuse
                 // d'écrire un DateTime Kind=Unspecified dans une colonne "timestamp with time zone"
                 // (voir ListeningEventConfiguration).
-                DateTime listenedAt = DateTime.SpecifyKind(
+                var listenedAt = DateTime.SpecifyKind(
                     DateTime.ParseExact(
                         row.Cell(_listenedAtColumn).GetString().Trim(),
                         _listenedAtFormat,

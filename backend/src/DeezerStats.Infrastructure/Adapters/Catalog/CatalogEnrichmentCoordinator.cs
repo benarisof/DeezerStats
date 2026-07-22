@@ -17,7 +17,7 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
 {
     /// <summary>
     /// Enrichit plusieurs éléments du catalogue en parallèle, à concurrence bornée (voir
-    /// <see cref="MaxConcurrency"/>). Chaque élément est traité dans son propre <see cref="IServiceScope"/> :
+    /// <see cref="_maxConcurrency"/>). Chaque élément est traité dans son propre <see cref="IServiceScope"/> :
     /// les use cases GetOrEnrichX et leurs dépendances (DbContext compris) sont Scoped et ne
     /// supportent pas d'être utilisées simultanément par plusieurs threads.
     ///
@@ -29,7 +29,7 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
         IServiceScopeFactory scopeFactory,
         ILogger<CatalogEnrichmentCoordinator> logger) : ICatalogEnrichmentCoordinator
     {
-        private const int MaxConcurrency = 10;
+        private const int _maxConcurrency = 10;
 
         private static readonly Action<ILogger, Guid, Exception?> _logEnrichmentError =
             LoggerMessage.Define<Guid>(
@@ -61,8 +61,8 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
                 try
                 {
                     using IServiceScope scope = _scopeFactory.CreateScope();
-                    var getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichAlbumUseCase>();
-                    var artistRepository = scope.ServiceProvider.GetRequiredService<IArtistRepository>();
+                    IGetOrEnrichAlbumUseCase getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichAlbumUseCase>();
+                    IArtistRepository artistRepository = scope.ServiceProvider.GetRequiredService<IArtistRepository>();
 
                     Album? album = await getOrEnrich.ExecuteAsync(new GetOrEnrichAlbumRequest(albumId), itemCt);
 
@@ -101,7 +101,7 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
                 try
                 {
                     using IServiceScope scope = _scopeFactory.CreateScope();
-                    var getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichArtistUseCase>();
+                    IGetOrEnrichArtistUseCase getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichArtistUseCase>();
 
                     Artist? artist = await getOrEnrich.ExecuteAsync(new GetOrEnrichArtistRequest(artistId), itemCt);
 
@@ -138,8 +138,8 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
                 try
                 {
                     using IServiceScope scope = _scopeFactory.CreateScope();
-                    var getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichTrackUseCase>();
-                    var artistRepository = scope.ServiceProvider.GetRequiredService<IArtistRepository>();
+                    IGetOrEnrichTrackUseCase getOrEnrich = scope.ServiceProvider.GetRequiredService<IGetOrEnrichTrackUseCase>();
+                    IArtistRepository artistRepository = scope.ServiceProvider.GetRequiredService<IArtistRepository>();
 
                     Track? track = await getOrEnrich.ExecuteByIdAsync(trackId, itemCt);
 
@@ -165,7 +165,7 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
 
         private static ParallelOptions ParallelOptionsFor(CancellationToken ct) => new()
         {
-            MaxDegreeOfParallelism = MaxConcurrency,
+            MaxDegreeOfParallelism = _maxConcurrency,
             CancellationToken = ct,
         };
 
@@ -179,7 +179,7 @@ namespace DeezerStats.Infrastructure.Adapters.Catalog
             try
             {
                 using IServiceScope scope = _scopeFactory.CreateScope();
-                var searchEnginePort = scope.ServiceProvider.GetRequiredService<ISearchEnginePort>();
+                ISearchEnginePort searchEnginePort = scope.ServiceProvider.GetRequiredService<ISearchEnginePort>();
                 await searchEnginePort.IndexDocumentsAsync(documents, ct);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)

@@ -76,12 +76,14 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 
 ## Phase 8 — Enrichissement Deezer ✅
 
-| # | Ticket |
-|---|--------|
-| 8.1 | Adapter `IDeezerEnrichmentPort` : `HttpClient` typé vers l'API publique Deezer + résilience (Polly : retry/timeout) |
-| 8.2 | Persistance des métadonnées enrichies (cover, durée, date de sortie) — stratégie cache-first déjà actée par le use case `GetOrEnrichTrackUseCase` |
-| 8.3 | Déclenchement de l'enrichissement en tâche de fond après un import (`IHostedService`/`Channel<T>`, pour ne pas bloquer la réponse HTTP) |
-| 8.4 | Tests avec `HttpClient` mocké (cache hit / cache miss / échec API Deezer) |
+| # | Ticket | Statut |
+|---|--------|--------|
+| 8.1 | Adapter `IDeezerEnrichmentPort` : `HttpClient` typé vers l'API publique Deezer + résilience (Polly : retry/timeout) | ✅ |
+| 8.2 | Persistance des métadonnées enrichies (cover, durée, date de sortie) — stratégie cache-first déjà actée par le use case `GetOrEnrichTrackUseCase` | ✅ |
+| 8.3 | ~~Déclenchement de l'enrichissement en tâche de fond après un import~~ — remplacé par un enrichissement à la demande (voir 8.5/8.6) : l'import réel (~42 000 lignes) prenait plus de 10 minutes à cause de l'enrichissement séquentiel de chaque ligne. L'import n'enrichit plus rien ; seule l'indexation Meilisearch reste couplée à l'import (voir Phase 10.1) | ❌ |
+| 8.5 | Enrichissement à la demande sur les pages détail (`GetAlbumDetailUseCase`/`GetArtistDetailUseCase`) : cache-first, un seul appel Deezer par élément, ré-indexation systématique | ✅ |
+| 8.6 | Enrichissement à la demande sur les listes (`GetHomeStatsUseCase`, `GetTopAlbumsUseCase`, `GetTopArtistsUseCase`, `GetTopTracksUseCase`) : parallèle à concurrence bornée (`CatalogEnrichmentCoordinator`, 10 max, un scope DI isolé par élément car `DbContext` n'est pas thread-safe) pour ne pas bloquer la réponse HTTP sur des pages de 100 éléments | ✅ |
+| 8.4 | Tests avec `HttpClient` mocké (cache hit / cache miss / échec API Deezer) | ✅ |
 
 ## Phase 9 — Endpoints de consultation (stats, tops, historique, item) ✅
 
@@ -101,7 +103,9 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 10.1 | Indexation albums/artistes/morceaux dans Meilisearch, synchronisée à l'import/enrichissement | ✅ |
 | 10.2 | `GET /search/suggestions` (autocomplétion, déclenchée côté front à partir de 4 caractères) | ✅ |
 | 10.3 | `GET /search` (recherche complète, clic suggestion ou touche Entrée, paginée) | ✅ |
-| 10.4 | Tests d'intégration recherche : tolérance aux fautes de frappe, perf sur ~50 000 lignes | ⬜ |
+| 10.4a | Test d'intégration : la recherche fonctionne juste après import, sans jamais visiter un détail (`FakeSearchEnginePort` en mémoire — CI n'a pas de vrai Meilisearch) | ✅ |
+| 10.4b | Test d'intégration : une cover apparaît après la première consultation d'un détail (`FakeDeezerEnrichmentPort` configurable) | ✅ |
+| 10.4c | Tests contre un vrai Meilisearch : tolérance aux fautes de frappe, perf sur ~50 000 lignes | ⬜ |
 
 *Le contrat OpenAPI sert de source de vérité pendant les phases 1 à 10 : le frontend peut être développé contre un mock généré à partir de `docs/api/openapi.yaml` pendant que le backend implémente chaque endpoint.*
 
