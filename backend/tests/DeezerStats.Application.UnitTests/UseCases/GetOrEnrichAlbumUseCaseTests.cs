@@ -93,8 +93,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
         public async Task ExecuteAsyncWhenArtistNotFoundShouldReturnAlbumUnenrichedWithoutCallingDeezer()
         {
             // Arrange : situation anormale (album orphelin), qui ne doit jamais faire échouer le
-            // traitement des autres éléments de la file d'enrichissement (voir
-            // EnrichmentBackgroundService).
+            // traitement des autres éléments enrichis en parallèle (voir
+            // CatalogEnrichmentCoordinator).
             var album = new Album(Guid.NewGuid(), "Discovery", Guid.NewGuid());
             _albumRepository.GetByIdAsync(album.Id, Arg.Any<CancellationToken>()).Returns(album);
             _artistRepository.GetByIdAsync(album.ArtistId, Arg.Any<CancellationToken>()).Returns((Artist?)null);

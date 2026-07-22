@@ -23,17 +23,17 @@ public class MeilisearchAdapter(
             new EventId(2002, "MeilisearchSearchError"),
             "Erreur Meilisearch lors de la recherche du catalogue pour la requête: {Query}");
 
-    private static readonly Action<ILogger, string, Exception?> _logIndexError =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, int, Exception?> _logIndexError =
+        LoggerMessage.Define<int>(
             LogLevel.Error,
             new EventId(2003, "MeilisearchIndexError"),
-            "Erreur lors de l'indexation du document {DocumentId} dans Meilisearch.");
+            "Erreur lors de l'indexation de {DocumentCount} document(s) dans Meilisearch.");
 
-    private static readonly Action<ILogger, string, Exception?> _logIndexDebug =
-        LoggerMessage.Define<string>(
+    private static readonly Action<ILogger, int, Exception?> _logIndexDebug =
+        LoggerMessage.Define<int>(
             LogLevel.Debug,
             new EventId(2004, "MeilisearchIndexDebug"),
-            "Document {DocumentId} poussé dans Meilisearch avec succès.");
+            "{DocumentCount} document(s) poussé(s) dans Meilisearch avec succès.");
 
     private readonly string _indexName = options.Value.IndexName;
 
@@ -104,18 +104,25 @@ public class MeilisearchAdapter(
         }
     }
 
-    public async Task IndexDocumentAsync(SearchDocumentDto document, CancellationToken cancellationToken)
+    public async Task IndexDocumentsAsync(IEnumerable<SearchDocumentDto> documents, CancellationToken cancellationToken)
     {
+        List<SearchDocumentDto> documentList = documents as List<SearchDocumentDto> ?? [.. documents];
+
+        if (documentList.Count == 0)
+        {
+            return;
+        }
+
         try
         {
             Meilisearch.Index index = client.Index(_indexName);
-            await index.AddDocumentsAsync([document], primaryKey: "id", cancellationToken: cancellationToken);
+            await index.AddDocumentsAsync(documentList, primaryKey: "id", cancellationToken: cancellationToken);
 
-            _logIndexDebug(logger, document.Id, null);
+            _logIndexDebug(logger, documentList.Count, null);
         }
         catch (MeilisearchApiError ex)
         {
-            _logIndexError(logger, document.Id, ex);
+            _logIndexError(logger, documentList.Count, ex);
             throw;
         }
     }

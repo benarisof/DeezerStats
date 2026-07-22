@@ -1,4 +1,5 @@
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
+using DeezerStats.Application.Ports.ExternalServices.Search;
 using DeezerStats.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -15,9 +16,13 @@ namespace DeezerStats.Api.IntegrationTests;
 /// - la base PostgreSQL par le provider EF Core InMemory (une instance nommée avec un GUID par
 ///   factory garantit qu'aucun test ne peut affecter les autres) ;
 /// - le véritable adaptateur Deezer (HttpClient vers l'API publique, voir
-///   DeezerHttpEnrichmentAdapter) par un faux (voir FakeDeezerEnrichmentPort), pour qu'un import
-///   déclenchant un enrichissement en tâche de fond (voir EnrichmentBackgroundService) ne dépende
-///   jamais d'un appel réseau sortant réel pendant les tests.
+///   DeezerHttpEnrichmentAdapter) par un faux (voir FakeDeezerEnrichmentPort), pour qu'un
+///   enrichissement à la demande (voir CatalogEnrichmentCoordinator, GetAlbumDetailUseCase...) ne
+///   dépende jamais d'un appel réseau sortant réel pendant les tests ;
+/// - le véritable adaptateur Meilisearch par un faux en mémoire (voir FakeSearchEnginePort), car
+///   le pipeline CI ne provisionne pas d'instance Meilisearch (contrairement à docker-compose en
+///   local) et un test de recherche ne doit pas dépendre de la latence d'indexation asynchrone
+///   réelle de Meilisearch.
 /// </summary>
 public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 {
@@ -35,6 +40,9 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
             services.RemoveAll<IDeezerEnrichmentPort>();
             services.AddSingleton<IDeezerEnrichmentPort, FakeDeezerEnrichmentPort>();
+
+            services.RemoveAll<ISearchEnginePort>();
+            services.AddSingleton<ISearchEnginePort, FakeSearchEnginePort>();
         });
     }
 }

@@ -1,4 +1,5 @@
 using DeezerStats.Application.DTOs.Stats;
+using DeezerStats.Application.Ports.Catalog;
 using DeezerStats.Application.Ports.Queries;
 using DeezerStats.Application.UseCases.Stats.TopAlbums;
 using DeezerStats.Application.Validation.Validators;
@@ -12,17 +13,18 @@ namespace DeezerStats.Application.UnitTests.UseCases.Stats.TopAlbums
     public class GetTopAlbumsUseCaseTests
     {
         private readonly IListeningStatsQueryPort _statsQueryPort = Substitute.For<IListeningStatsQueryPort>();
+        private readonly ICatalogEnrichmentCoordinator _enrichmentCoordinator = Substitute.For<ICatalogEnrichmentCoordinator>();
         private readonly GetTopAlbumsUseCase _useCase;
 
         public GetTopAlbumsUseCaseTests()
         {
-            _useCase = new GetTopAlbumsUseCase(_statsQueryPort, new GetTopAlbumsQueryValidator());
+            _useCase = new GetTopAlbumsUseCase(_statsQueryPort, _enrichmentCoordinator, new GetTopAlbumsQueryValidator());
         }
 
         [Fact]
         public async Task ExecuteAsyncWithValidQueryShouldBuildDateRangeAndReturnPortResult()
         {
-            // Arrange
+            // Arrange : liste vide -> aucun élément à enrichir, le résultat du port est retourné tel quel.
             var userId = Guid.NewGuid();
             var from = new DateOnly(2026, 1, 1);
             var to = new DateOnly(2026, 6, 30);
@@ -39,6 +41,37 @@ namespace DeezerStats.Application.UnitTests.UseCases.Stats.TopAlbums
 
             // Assert
             result.Should().BeSameAs(expected);
+            await _enrichmentCoordinator.DidNotReceiveWithAnyArgs().EnrichAlbumsAsync(default!, default);
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncShouldEnrichOnlyAlbumsWithoutCoverAndPatchTheirFreshCover()
+        {
+            // Arrange : un album déjà couvert (jamais enrichi à nouveau) et un album sans couverture
+            // (à enrichir à la demande, voir CatalogEnrichmentCoordinator).
+            var userId = Guid.NewGuid();
+            var alreadyCovered = new AlbumSummary(Guid.NewGuid(), "Random Access Memories", "Daft Punk", "https://existing.jpg", 10);
+            var uncovered = new AlbumSummary(Guid.NewGuid(), "Discovery", "Daft Punk", null, 42);
+            var expected = new PagedResult<AlbumSummary>([alreadyCovered, uncovered], 1, 20, 2);
+
+            _statsQueryPort
+                .GetTopAlbumsAsync(userId, Arg.Any<DateRange>(), 1, 20, Arg.Any<CancellationToken>())
+                .Returns(expected);
+
+            _enrichmentCoordinator
+                .EnrichAlbumsAsync(
+                    Arg.Is<IReadOnlyCollection<Guid>>(ids => ids != null && ids.Count == 1 && ids.Contains(uncovered.Id)),
+                    Arg.Any<CancellationToken>())
+                .Returns(new Dictionary<Guid, string?> { [uncovered.Id] = "https://fresh.jpg" });
+
+            var query = new GetTopAlbumsQuery(userId, null, null, Page: 1, PageSize: 20);
+
+            // Act
+            PagedResult<AlbumSummary> result = await _useCase.ExecuteAsync(query);
+
+            // Assert
+            result.Items.Should().ContainSingle(a => a.Id == alreadyCovered.Id && a.CoverUrl == "https://existing.jpg");
+            result.Items.Should().ContainSingle(a => a.Id == uncovered.Id && a.CoverUrl == "https://fresh.jpg");
         }
 
         [Fact]

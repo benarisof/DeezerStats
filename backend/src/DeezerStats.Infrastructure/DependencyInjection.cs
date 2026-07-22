@@ -1,16 +1,16 @@
 using DeezerStats.Application.Ports;
-using DeezerStats.Application.Ports.BackgroundJobs;
+using DeezerStats.Application.Ports.Catalog;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
 using DeezerStats.Application.Ports.ExternalServices.Search;
 using DeezerStats.Application.Ports.Queries;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
+using DeezerStats.Infrastructure.Adapters.Catalog;
 using DeezerStats.Infrastructure.Adapters.Deezer;
 using DeezerStats.Infrastructure.Adapters.Excel;
 using DeezerStats.Infrastructure.Adapters.Search;
 using DeezerStats.Infrastructure.Adapters.Security;
-using DeezerStats.Infrastructure.BackgroundJobs;
 using DeezerStats.Infrastructure.Persistence;
 using DeezerStats.Infrastructure.Persistence.Queries;
 using DeezerStats.Infrastructure.Persistence.Repositories;
@@ -52,9 +52,9 @@ namespace DeezerStats.Infrastructure
 
             // Adaptateur Deezer : HttpClient typé + résilience (retry/timeout) via Polly. Le
             // timeout par tentative et le nombre de tentatives sont volontairement plus courts que
-            // les défauts d'AddStandardResilienceHandler, car l'enrichissement est un traitement
-            // d'arrière-plan (voir EnrichmentBackgroundService) qui ne doit pas monopoliser un
-            // thread trop longtemps sur une API tierce.
+            // les défauts d'AddStandardResilienceHandler, car l'enrichissement se fait à la demande
+            // au fil des requêtes HTTP (voir CatalogEnrichmentCoordinator, GetAlbumDetailUseCase...)
+            // et ne doit donc pas monopoliser un thread trop longtemps sur une API tierce.
             services.AddHttpClient<IDeezerEnrichmentPort, DeezerHttpEnrichmentAdapter>(client =>
             {
                 client.BaseAddress = new Uri("https://api.deezer.com/");
@@ -67,13 +67,11 @@ namespace DeezerStats.Infrastructure
                 options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
             });
 
-            // Enrichissement en tâche de fond après import (voir ImportListeningHistoryUseCase et
-            // le contrat OpenAPI de POST /imports) : la file est Singleton pour être partagée entre
-            // les requêtes HTTP (producteurs, Scoped) et le service d'arrière-plan (consommateur).
-            services.AddSingleton<EnrichmentJobChannel>();
-            services.AddSingleton<IEnrichmentJobScheduler>(sp => sp.GetRequiredService<EnrichmentJobChannel>());
-            services.AddSingleton<IEnrichmentJobReader>(sp => sp.GetRequiredService<EnrichmentJobChannel>());
-            services.AddHostedService<EnrichmentBackgroundService>();
+            // Enrichissement parallèle à concurrence bornée pour les listes (top albums/artistes/
+            // morceaux, accueil) : Singleton car sans état propre, il ne dépend que d'IServiceScopeFactory
+            // (lui-même Singleton) pour créer un scope isolé par élément enrichi (voir
+            // CatalogEnrichmentCoordinator).
+            services.AddSingleton<ICatalogEnrichmentCoordinator, CatalogEnrichmentCoordinator>();
 
             // Configuration de JwtSettings
             services.AddSingleton<IValidateOptions<JwtSettings>, JwtSettingsValidator>();

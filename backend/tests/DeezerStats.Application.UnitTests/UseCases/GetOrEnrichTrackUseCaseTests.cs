@@ -93,5 +93,46 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.Should().BeNull();
             await _deezerPort.DidNotReceiveWithAnyArgs().FetchTrackMetadataAsync(default!, default);
         }
+
+        [Fact]
+        public async Task ExecuteByIdAsyncWhenTrackIsNotEnrichedShouldLookUpByIdFetchMetadataAndUpdateDb()
+        {
+            // Arrange : utilisé par CatalogEnrichmentCoordinator, qui ne connaît que l'identifiant du
+            // morceau (issu des DTO de liste, voir TrackSummary) et non son ISRC.
+            var isrc = new Isrc("USCM51300736");
+            var trackId = Guid.NewGuid();
+            var track = new Track(trackId, isrc, "Midnight City", Guid.NewGuid(), Guid.NewGuid());
+            var metadata = new DeezerTrackMetadata("https://deezer.com/cover.jpg", new Duration(243));
+
+            _trackRepository.GetByIdAsync(trackId, Arg.Any<CancellationToken>())
+                .Returns(track);
+
+            _deezerPort.FetchTrackMetadataAsync(isrc, Arg.Any<CancellationToken>())
+                .Returns(metadata);
+
+            // Act
+            Track? result = await _useCase.ExecuteByIdAsync(trackId);
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.CoverUrl.Should().Be("https://deezer.com/cover.jpg");
+            await _trackRepository.Received(1).UpdateAsync(track, Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
+        public async Task ExecuteByIdAsyncWhenTrackNotFoundInDbShouldReturnNull()
+        {
+            // Arrange
+            var trackId = Guid.NewGuid();
+            _trackRepository.GetByIdAsync(trackId, Arg.Any<CancellationToken>())
+                .Returns((Track?)null);
+
+            // Act
+            Track? result = await _useCase.ExecuteByIdAsync(trackId);
+
+            // Assert
+            result.Should().BeNull();
+            await _deezerPort.DidNotReceiveWithAnyArgs().FetchTrackMetadataAsync(default!, default);
+        }
     }
 }

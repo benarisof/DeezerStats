@@ -1,7 +1,9 @@
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.DTOs.Search;
+using DeezerStats.Application.Mappers;
 using DeezerStats.Application.Ports;
-using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
+using DeezerStats.Application.Ports.ExternalServices.Search;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
@@ -9,6 +11,7 @@ using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
 using DeezerStats.Domain.SeedWork;
 using DeezerStats.Domain.ValueObjects;
+using Microsoft.Extensions.Logging;
 
 namespace DeezerStats.Application.UseCases.Import
 {
@@ -19,15 +22,23 @@ namespace DeezerStats.Application.UseCases.Import
         IArtistRepository artistRepository,
         IAlbumRepository albumRepository,
         IUnitOfWork unitOfWork,
-        IEnrichmentJobScheduler enrichmentQueue) : IImportListeningHistoryUseCase
+        ISearchEnginePort searchEnginePort,
+        ILogger<ImportListeningHistoryUseCase> logger) : IImportListeningHistoryUseCase
     {
+        private static readonly Action<ILogger, int, Exception?> _logIndexingError =
+            LoggerMessage.Define<int>(
+                LogLevel.Error,
+                new EventId(3001, "ImportSearchIndexingError"),
+                "Échec de l'indexation de {DocumentCount} document(s) après l'import : import conservé, l'index sera rattrapé plus tard.");
+
         private readonly IExcelParserPort _excelParser = excelParser;
         private readonly IListeningEventRepository _listeningEventRepository = listeningEventRepository;
         private readonly ITrackRepository _trackRepository = trackRepository;
         private readonly IArtistRepository _artistRepository = artistRepository;
         private readonly IAlbumRepository _albumRepository = albumRepository;
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
-        private readonly IEnrichmentJobScheduler _enrichmentQueue = enrichmentQueue;
+        private readonly ISearchEnginePort _searchEnginePort = searchEnginePort;
+        private readonly ILogger<ImportListeningHistoryUseCase> _logger = logger;
 
         public async Task<ImportReport> ExecuteAsync(ImportListeningHistoryCommand command, CancellationToken ct = default)
         {
@@ -174,26 +185,14 @@ namespace DeezerStats.Application.UseCases.Import
             {
                 await _unitOfWork.SaveChangesAsync(ct);
 
-                // Étape 7 : maintenant que le lot est persisté avec succès, on planifie
-                // l'enrichissement Deezer des nouveaux artistes/albums/morceaux en tâche de fond
-                // (voir EnrichmentBackgroundService), sans attendre son résultat, conformément au
-                // contrat OpenAPI de POST /imports. Seules les entités nouvellement créées par CET
-                // import sont concernées : un artiste/album/morceau déjà connu du catalogue a déjà
-                // été (ou sera) enrichi par un import précédent.
-                foreach (Artist newArtist in newArtists.Values)
-                {
-                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForArtist(newArtist.Id), ct);
-                }
-
-                foreach (Album newAlbum in newAlbums.Values)
-                {
-                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForAlbum(newAlbum.Id), ct);
-                }
-
-                foreach (Track newTrack in newTracks)
-                {
-                    await _enrichmentQueue.EnqueueAsync(new EnrichmentWorkItem.ForTrack(newTrack.Isrc), ct);
-                }
+                // Étape 7 : maintenant que le lot est persisté avec succès, on indexe les nouvelles
+                // entités dans le moteur de recherche en un seul appel groupé (voir
+                // ISearchEnginePort.IndexDocumentsAsync) plutôt qu'un appel par entité. L'enrichissement
+                // Deezer (cover, durée, date de sortie) n'est plus déclenché ici : il se fait à la
+                // demande, lors de la consultation du détail d'un album ou d'un artiste, pour ne
+                // jamais bloquer la réponse HTTP de POST /imports sur des milliers d'appels réseau
+                // séquentiels (voir contrat OpenAPI de /imports).
+                await IndexNewCatalogEntitiesAsync(existingArtists, newArtists.Values, newAlbums.Values, newTracks, ct);
             }
 
             return new ImportReport(
@@ -247,6 +246,68 @@ namespace DeezerStats.Application.UseCases.Import
             var album = new Album(Guid.NewGuid(), albumTitle, artistId);
             newAlbums[key] = album;
             return album;
+        }
+
+        /// <summary>
+        /// Construit les documents de recherche des entités nouvellement créées par cet import et
+        /// les indexe en un seul appel groupé. Une panne du moteur de recherche est journalisée puis
+        /// absorbée : elle ne doit jamais faire échouer l'import lui-même (Postgres, déjà persisté à
+        /// ce stade, reste la source de vérité).
+        /// </summary>
+        private async Task IndexNewCatalogEntitiesAsync(
+            IReadOnlyList<Artist> existingArtists,
+            IReadOnlyCollection<Artist> newArtists,
+            IReadOnlyCollection<Album> newAlbums,
+            IReadOnlyCollection<Track> newTracks,
+            CancellationToken ct)
+        {
+            // Noms d'artiste nécessaires aux documents album/morceau : déjà en mémoire, qu'ils
+            // proviennent d'un artiste réutilisé (existingArtists) ou tout juste créé (newArtists) --
+            // aucun aller-retour base supplémentaire.
+            var artistNameById = new Dictionary<Guid, string>();
+
+            foreach (Artist artist in existingArtists)
+            {
+                artistNameById[artist.Id] = artist.Name;
+            }
+
+            foreach (Artist artist in newArtists)
+            {
+                artistNameById[artist.Id] = artist.Name;
+            }
+
+            var documents = new List<SearchDocumentDto>();
+
+            foreach (Artist artist in newArtists)
+            {
+                documents.Add(SearchMapper.ToSearchDocument(artist.Id, artist.Name, artist.CoverUrl));
+            }
+
+            foreach (Album album in newAlbums)
+            {
+                var artistName = artistNameById.GetValueOrDefault(album.ArtistId, string.Empty);
+                documents.Add(SearchMapper.ToSearchDocument(album.Id, album.Title, artistName, album.CoverUrl));
+            }
+
+            foreach (Track track in newTracks)
+            {
+                var artistName = artistNameById.GetValueOrDefault(track.ArtistId, string.Empty);
+                documents.Add(SearchMapper.ToSearchDocumentForTrack(track.Id, track.Title, artistName, track.CoverUrl));
+            }
+
+            if (documents.Count == 0)
+            {
+                return;
+            }
+
+            try
+            {
+                await _searchEnginePort.IndexDocumentsAsync(documents, ct);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _logIndexingError(_logger, documents.Count, ex);
+            }
         }
     }
 }

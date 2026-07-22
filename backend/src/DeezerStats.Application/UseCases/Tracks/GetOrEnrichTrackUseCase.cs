@@ -16,26 +16,33 @@ namespace DeezerStats.Application.UseCases.Tracks
             // 1. Chercher dans Postgresql via le repository
             Track? track = await _trackRepository.GetByIsrcAsync(request.Isrc, ct);
 
-            if (track is null)
-            {
-                return null;
-            }
+            return track is null ? null : await EnrichIfNeededAsync(track, ct);
+        }
 
-            // 2. Si le morceau est déjà enrichi, on évite un appel réseau externe
+        public async Task<Track?> ExecuteByIdAsync(Guid trackId, CancellationToken ct = default)
+        {
+            Track? track = await _trackRepository.GetByIdAsync(trackId, ct);
+
+            return track is null ? null : await EnrichIfNeededAsync(track, ct);
+        }
+
+        private async Task<Track> EnrichIfNeededAsync(Track track, CancellationToken ct)
+        {
+            // Si le morceau est déjà enrichi, on évite un appel réseau externe
             if (track.IsEnriched)
             {
                 return track;
             }
 
-            // 3. Fallback : Appel à l'API externe Deezer
+            // Fallback : Appel à l'API externe Deezer
             DeezerTrackMetadata? deezerMetadata = await _deezerPort.FetchTrackMetadataAsync(track.Isrc, ct);
 
             if (deezerMetadata is not null)
             {
-                // 4. Mutation de l'agrégat dans le domaine
+                // Mutation de l'agrégat dans le domaine
                 track.Enrich(deezerMetadata.Duration, deezerMetadata.CoverUrl);
 
-                // 5. Persistence des métadonnées dans PostgreSQL
+                // Persistence des métadonnées dans PostgreSQL
                 await _trackRepository.UpdateAsync(track, ct);
             }
 

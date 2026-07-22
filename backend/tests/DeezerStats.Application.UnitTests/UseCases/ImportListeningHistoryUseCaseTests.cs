@@ -1,7 +1,8 @@
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.DTOs.Search;
 using DeezerStats.Application.Ports;
-using DeezerStats.Application.Ports.BackgroundJobs;
 using DeezerStats.Application.Ports.ExternalServices.Excel;
+using DeezerStats.Application.Ports.ExternalServices.Search;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Import;
 using DeezerStats.Domain.Aggregates.AlbumAggregate;
@@ -10,6 +11,7 @@ using DeezerStats.Domain.Aggregates.ListeningEventAggregate;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
 using DeezerStats.Domain.ValueObjects;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
 namespace DeezerStats.Application.UnitTests.UseCases
@@ -22,7 +24,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
         private readonly IAlbumRepository _albumRepository = Substitute.For<IAlbumRepository>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
-        private readonly IEnrichmentJobScheduler _enrichmentQueue = Substitute.For<IEnrichmentJobScheduler>();
+        private readonly ISearchEnginePort _searchEnginePort = Substitute.For<ISearchEnginePort>();
 
         private readonly ImportListeningHistoryUseCase _useCase;
 
@@ -35,7 +37,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 _artistRepository,
                 _albumRepository,
                 _unitOfWork,
-                _enrichmentQueue);
+                _searchEnginePort,
+                NullLogger<ImportListeningHistoryUseCase>.Instance);
 
             _trackRepository.GetByIsrcsAsync(Arg.Any<IEnumerable<Isrc>>(), Arg.Any<CancellationToken>())
                 .Returns((IReadOnlyList<Track>)[]);
@@ -90,17 +93,15 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 Arg.Any<CancellationToken>());
             await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
 
-            // Vérification : le nouvel artiste, son nouvel album ET son nouveau morceau sont
-            // planifiés pour un enrichissement Deezer en arrière-plan (voir
-            // EnrichmentBackgroundService).
-            await _enrichmentQueue.Received(1).EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForArtist),
-                Arg.Any<CancellationToken>());
-            await _enrichmentQueue.Received(1).EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForAlbum),
-                Arg.Any<CancellationToken>());
-            await _enrichmentQueue.Received(1).EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForTrack),
+            // Vérification : le nouvel artiste, son nouvel album ET son nouveau morceau sont indexés
+            // dans le moteur de recherche en un seul appel groupé (aucun enrichissement Deezer n'est
+            // planifié à l'import -- voir GetAlbumDetailUseCase/GetArtistDetailUseCase pour la
+            // version à la demande).
+            await _searchEnginePort.Received(1).IndexDocumentsAsync(
+                Arg.Is<IEnumerable<SearchDocumentDto>>(docs => docs != null
+                    && docs.Count(d => d.Type == "artist") == 1
+                    && docs.Count(d => d.Type == "album") == 1
+                    && docs.Count(d => d.Type == "track") == 1),
                 Arg.Any<CancellationToken>());
         }
 
@@ -137,7 +138,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             await _listeningRepository.DidNotReceiveWithAnyArgs().AddRangeAsync(default!, default);
             await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
-            await _enrichmentQueue.DidNotReceiveWithAnyArgs().EnqueueAsync(default!, default);
+            await _searchEnginePort.DidNotReceiveWithAnyArgs().IndexDocumentsAsync(default!, default);
         }
 
         [Fact]
@@ -255,17 +256,41 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     && tracks.Single().AlbumId == existingAlbum.Id),
                 Arg.Any<CancellationToken>());
 
-            // Vérification : ni l'artiste ni l'album, déjà connus du catalogue, ne sont replanifiés
-            // pour un enrichissement Deezer — seul le nouveau morceau l'est.
-            await _enrichmentQueue.DidNotReceive().EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForArtist),
+            // Vérification : ni l'artiste ni l'album, déjà connus du catalogue, ne sont ré-indexés —
+            // seul le nouveau morceau l'est, avec le nom du bon artiste (résolu sans aller-retour
+            // base supplémentaire puisqu'il était déjà en mémoire).
+            await _searchEnginePort.Received(1).IndexDocumentsAsync(
+                Arg.Is<IEnumerable<SearchDocumentDto>>(docs => docs != null
+                    && docs.Count() == 1
+                    && docs.Single().Type == "track"
+                    && docs.Single().Subtitle == existingArtist.Name),
                 Arg.Any<CancellationToken>());
-            await _enrichmentQueue.DidNotReceive().EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForAlbum),
-                Arg.Any<CancellationToken>());
-            await _enrichmentQueue.Received(1).EnqueueAsync(
-                Arg.Is<EnrichmentWorkItem>(item => item is EnrichmentWorkItem.ForTrack),
-                Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncShouldSucceedEvenWhenSearchIndexingFails()
+        {
+            // Arrange : une panne du moteur de recherche (Meilisearch indisponible, etc.) ne doit
+            // jamais faire échouer l'import -- Postgres, déjà persisté à ce stade, reste la source
+            // de vérité ; l'index de recherche pourra être rattrapé plus tard.
+            var userId = Guid.NewGuid();
+            var row = new ExcelListeningRow("Starboy", "The Weeknd", "Starboy Album", "USUM71607007", 230, DateTime.UtcNow.AddHours(-1));
+
+            _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns([row]);
+
+            _searchEnginePort.IndexDocumentsAsync(Arg.Any<IEnumerable<SearchDocumentDto>>(), Arg.Any<CancellationToken>())
+                .Returns(Task.FromException(new InvalidOperationException("Meilisearch indisponible.")));
+
+            var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
+
+            // Act
+            ImportReport result = await _useCase.ExecuteAsync(command);
+
+            // Assert : l'import a quand même réussi et persisté le lot.
+            result.ImportedCount.Should().Be(1);
+            result.ErrorCount.Should().Be(0);
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
     }
 }
