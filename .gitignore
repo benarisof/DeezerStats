@@ -12,6 +12,7 @@ frontend/.vite/
 .env
 .env.*
 !.env.example
+!.env.test
 
 # IDE / OS
 .vs/
