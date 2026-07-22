@@ -43,6 +43,5 @@ jobs:
         env:
           VITE_API_URL: http://localhost:5231/api/v1
 
-      # Étape à activer dès qu'un framework de test (Vitest) sera ajouté au projet :
-      # - name: Test
-      #   run: npm run test -- --run
+      - name: Test
+        run: npm run test -- --run

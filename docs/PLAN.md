@@ -94,46 +94,48 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 9.5 | Filtrage par plage de dates (`from`/`to`) sur toutes ces routes |
 | 9.6 | Index SQL sur `PlayCount`/`ListenedAt` + tests d'intégration et de perf |
 
-## Phase 10 — Moteur de recherche (Meilisearch) ⬜
+## Phase 10 — Moteur de recherche (Meilisearch) 🔶
 
-| # | Ticket |
-|---|--------|
-| 10.1 | Indexation albums/artistes/morceaux dans Meilisearch, synchronisée à l'import/enrichissement |
-| 10.2 | `GET /search/suggestions` (autocomplétion, déclenchée côté front à partir de 4 caractères) |
-| 10.3 | `GET /search` (recherche complète, clic suggestion ou touche Entrée, paginée) |
-| 10.4 | Tests d'intégration recherche : tolérance aux fautes de frappe, perf sur ~50 000 lignes |
+| # | Ticket | Statut |
+|---|--------|--------|
+| 10.1 | Indexation albums/artistes/morceaux dans Meilisearch, synchronisée à l'import/enrichissement | ✅ |
+| 10.2 | `GET /search/suggestions` (autocomplétion, déclenchée côté front à partir de 4 caractères) | ✅ |
+| 10.3 | `GET /search` (recherche complète, clic suggestion ou touche Entrée, paginée) | ✅ |
+| 10.4 | Tests d'intégration recherche : tolérance aux fautes de frappe, perf sur ~50 000 lignes | ⬜ |
 
 *Le contrat OpenAPI sert de source de vérité pendant les phases 1 à 10 : le frontend peut être développé contre un mock généré à partir de `docs/api/openapi.yaml` pendant que le backend implémente chaque endpoint.*
 
-## Phase 11 — Frontend : fondations & authentification ⬜
+## Phase 11 — Frontend : fondations & authentification ✅
 
-| # | Ticket |
-|---|--------|
-| 11.1 | Setup React 19 + Vite + TS + Tailwind v4, charte graphique inspirée de Deezer |
-| 11.2 | Router (react-router) + layout header (nav, recherche, bouton upload, sélecteur de plage de dates) |
-| 11.3 | State global : Zustand (session/auth) + TanStack Query (data fetching) + intercepteur JWT avec refresh automatique |
-| 11.4 | Pages Login/Register + garde de routes (redirection si non connecté) |
+| # | Ticket | Statut |
+|---|--------|--------|
+| 11.1 | Setup React 19 + Vite + TS + Tailwind v4 (Feature-Sliced Design) | ✅ |
+| 11.2 | Router (react-router) + layout header (nav, recherche, bouton upload, sélecteur de plage de dates) | ✅ |
+| 11.3 | State global : Zustand (session/auth) + TanStack Query (data fetching) + intercepteur JWT avec refresh automatique | ✅ |
+| 11.4 | Pages Login/Register + garde de routes (redirection si non connecté) | ✅ |
 
-## Phase 12 — Frontend : pages de consultation ⬜
+## Phase 12 — Frontend : pages de consultation 🔶
 
-| # | Ticket |
-|---|--------|
-| 12.1 | Page d'accueil (top 10 albums/artistes/morceaux, covers, compteurs) |
-| 12.2 | Pages Top Albums / Top Artistes / Top Morceaux (top 100, pagination) |
-| 12.3 | Page Historique (100 derniers morceaux) |
-| 12.4 | Page Item (détail album ou artiste, liste des tracks triée par écoutes) |
-| 12.5 | Composant recherche : suggestions dès 4 caractères, navigation clavier, clic ou Entrée |
-| 12.6 | Composant upload Excel + affichage du rapport d'import |
-| 12.7 | Sélecteur de plage de dates connecté aux query params (répercuté sur toutes les pages) |
+| # | Ticket | Statut |
+|---|--------|--------|
+| 12.1 | Page d'accueil (top 10 albums/artistes/morceaux, compteurs) — covers pas encore affichées | 🔶 |
+| 12.2 | Pages Top Albums / Top Artistes / Top Morceaux (top 100, pagination) | ✅ |
+| 12.3 | Page Historique (100 derniers morceaux) | ✅ |
+| 12.4 | Page Item (détail album ou artiste, liste des tracks triée par écoutes) | ✅ |
+| 12.5 | Composant recherche : suggestions dès 4 caractères, clic ou Entrée — navigation clavier (flèches) manquante | 🔶 |
+| 12.6 | Composant upload Excel + affichage du rapport d'import | ✅ |
+| 12.7 | Sélecteur de plage de dates connecté aux query params (répercuté sur toutes les pages) | ✅ |
+| 12.8 | Charte graphique inspirée de Deezer (actuellement un violet générique, pas de branding) | ⬜ |
+| 12.9 | Affichage des covers (albums/artistes/morceaux) sur toutes les pages de consultation | ⬜ |
 
-## Phase 13 — Qualité, performance, tests end-to-end ⬜
+## Phase 13 — Qualité, performance, tests end-to-end 🔶
 
-| # | Ticket |
-|---|--------|
-| 13.1 | Tests frontend (Vitest + Testing Library) — à activer dans `frontend-ci.yml` (étape déjà prévue en commentaire) |
-| 13.2 | Tests e2e (Playwright) sur les parcours principaux (connexion, upload, navigation tops, recherche) |
-| 13.3 | Audit performance (indices DB, pagination/infinite scroll, lazy loading des covers, cache HTTP) |
-| 13.4 | Accessibilité (a11y) et responsive |
+| # | Ticket | Statut |
+|---|--------|--------|
+| 13.1 | Tests frontend (Vitest + Testing Library), CI activée — couverture initiale : `authStore` (login/register/logout/bootstrap + réaction à un 401 non récupérable), `httpClient` (refresh automatique, single-flight, gestion d'erreurs), `ProtectedRoute`, utilitaires (`cn`, `toQueryString`, `ApiError`) | ✅ |
+| 13.2 | Tests e2e (Playwright) sur les parcours principaux (connexion, upload, navigation tops, recherche) | ⬜ |
+| 13.3 | Audit performance (indices DB, pagination/infinite scroll, lazy loading des covers, cache HTTP) | ⬜ |
+| 13.4 | Accessibilité (a11y) et responsive | ⬜ |
 
 ## Phase 14 — Conteneurisation & déploiement ⬜
 
@@ -148,7 +150,8 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 
 ## Prochaine étape suggérée
 
-La Phase 6 (authentification) est terminée : elle débloquait la Phase 9 (endpoints protégés) et la
-Phase 11 (frontend auth). Les phases 7/8/9/10 sont également faites côté backend (import →
-enrichissement → consultation → recherche) ; il reste à démarrer le frontend (phases 11/12) contre le
-contrat OpenAPI, puis la phase 13 (qualité/perf/e2e) et la phase 14 (déploiement).
+Le backend (phases 1 à 10) et le squelette frontend (phase 11) sont terminés ; le parcours
+register → login → navigation → logout fonctionne de bout en bout contre la vraie API. Il reste :
+finir les deux tickets 🔶 de la phase 12 (covers, navigation clavier), puis attaquer la phase 13
+(tests frontend, e2e, perf, a11y) — actuellement le point le plus faible de la solution, aucun test
+frontend n'existe — et enfin la phase 14 (déploiement).
