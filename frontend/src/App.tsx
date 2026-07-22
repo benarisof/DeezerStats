@@ -1,8 +1,12 @@
+import { RouterProvider } from "react-router-dom";
+import { AppProviders } from "@/app/providers/AppProviders";
+import { router } from "@/app/router/router";
+
 function App() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">
-      <h1 className="text-2xl font-semibold">Deezer Stats</h1>
-    </div>
+    <AppProviders>
+      <RouterProvider router={router} />
+    </AppProviders>
   );
 }
 

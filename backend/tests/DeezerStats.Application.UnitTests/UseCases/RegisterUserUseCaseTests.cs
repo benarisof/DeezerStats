@@ -1,6 +1,7 @@
 using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
@@ -17,6 +18,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly Mock<IUserRepository> _userRepositoryMock;
         private readonly Mock<IPasswordHasher> _passwordHasherMock;
         private readonly Mock<IAuthTokenIssuer> _authTokenIssuerMock;
+        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
         private readonly Mock<IValidator<RegisterUserCommand>> _validatorMock;
 
         private readonly RegisterUserUseCase _useCase;
@@ -26,6 +28,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _userRepositoryMock = new Mock<IUserRepository>();
             _passwordHasherMock = new Mock<IPasswordHasher>();
             _authTokenIssuerMock = new Mock<IAuthTokenIssuer>();
+            _unitOfWorkMock = new Mock<IUnitOfWork>();
             _validatorMock = new Mock<IValidator<RegisterUserCommand>>();
 
             _validatorMock
@@ -34,10 +37,17 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new ValidationResult());
 
+            // Exécute réellement l'opération transactionnelle passée par le use case, comme le ferait
+            // l'implémentation réelle (voir Infrastructure.Persistence.UnitOfWork).
+            _unitOfWorkMock
+                .Setup(x => x.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
+                .Returns<Func<Task>, CancellationToken>((operation, _) => operation());
+
             _useCase = new RegisterUserUseCase(
                 _userRepositoryMock.Object,
                 _passwordHasherMock.Object,
                 _authTokenIssuerMock.Object,
+                _unitOfWorkMock.Object,
                 _validatorMock.Object);
         }
 
