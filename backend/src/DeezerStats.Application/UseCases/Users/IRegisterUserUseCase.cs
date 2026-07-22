@@ -1,9 +1,9 @@
-using DeezerStats.Domain.Aggregates.UserAggregate;
+using DeezerStats.Application.DTOs;
 
 namespace DeezerStats.Application.UseCases.Users
 {
     public interface IRegisterUserUseCase
     {
-        public Task<User> ExecuteAsync(RegisterUserCommand command, CancellationToken ct = default);
+        public Task<AuthTokensDto> ExecuteAsync(RegisterUserCommand command, CancellationToken ct = default);
     }
 }

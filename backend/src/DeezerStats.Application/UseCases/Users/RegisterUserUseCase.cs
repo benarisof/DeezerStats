@@ -1,4 +1,6 @@
+using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
+using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Domain.Aggregates.UserAggregate;
@@ -10,13 +12,15 @@ namespace DeezerStats.Application.UseCases.Users
     public class RegisterUserUseCase(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
+        IAuthTokenIssuer authTokenIssuer,
         IValidator<RegisterUserCommand> validator) : IRegisterUserUseCase
     {
         private readonly IUserRepository _userRepository = userRepository;
         private readonly IPasswordHasher _passwordHasher = passwordHasher;
+        private readonly IAuthTokenIssuer _authTokenIssuer = authTokenIssuer;
         private readonly IValidator<RegisterUserCommand> _validator = validator;
 
-        public async Task<User> ExecuteAsync(
+        public async Task<AuthTokensDto> ExecuteAsync(
             RegisterUserCommand command,
             CancellationToken ct = default)
         {
@@ -43,7 +47,9 @@ namespace DeezerStats.Application.UseCases.Users
 
             await _userRepository.AddAsync(user, ct);
 
-            return user;
+            // Connexion automatique après inscription (voir schéma AuthTokens en réponse de
+            // POST /auth/register dans le contrat OpenAPI).
+            return await _authTokenIssuer.IssueAsync(user, ct);
         }
     }
 }

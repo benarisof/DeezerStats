@@ -12,6 +12,8 @@ namespace DeezerStats.Infrastructure.Persistence
     {
         public DbSet<User> Users => Set<User>();
 
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
         public DbSet<Artist> Artists => Set<Artist>();
 
         public DbSet<Album> Albums => Set<Album>();

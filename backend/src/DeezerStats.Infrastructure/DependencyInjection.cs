@@ -38,6 +38,7 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IArtistRepository, ArtistRepository>();
             services.AddScoped<IListeningEventRepository, ListeningEventRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
+            services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 
             // Unit of Work : permet aux cas d'usage multi-agrégats
             services.AddScoped<IUnitOfWork, UnitOfWork>();
@@ -80,6 +81,7 @@ namespace DeezerStats.Infrastructure
                 .Bind(configuration.GetSection(JwtSettings.SectionName))
                 .ValidateOnStart();
             services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
+            services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
 
             // Enregistrement des Options
             services.Configure<MeilisearchOptions>(configuration.GetSection(MeilisearchOptions.SectionName));

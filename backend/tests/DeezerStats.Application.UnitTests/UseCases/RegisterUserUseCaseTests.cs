@@ -1,4 +1,6 @@
+using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
+using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
@@ -14,6 +16,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
     {
         private readonly Mock<IUserRepository> _userRepositoryMock;
         private readonly Mock<IPasswordHasher> _passwordHasherMock;
+        private readonly Mock<IAuthTokenIssuer> _authTokenIssuerMock;
         private readonly Mock<IValidator<RegisterUserCommand>> _validatorMock;
 
         private readonly RegisterUserUseCase _useCase;
@@ -22,6 +25,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         {
             _userRepositoryMock = new Mock<IUserRepository>();
             _passwordHasherMock = new Mock<IPasswordHasher>();
+            _authTokenIssuerMock = new Mock<IAuthTokenIssuer>();
             _validatorMock = new Mock<IValidator<RegisterUserCommand>>();
 
             _validatorMock
@@ -33,17 +37,20 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _useCase = new RegisterUserUseCase(
                 _userRepositoryMock.Object,
                 _passwordHasherMock.Object,
+                _authTokenIssuerMock.Object,
                 _validatorMock.Object);
         }
 
         [Fact]
-        public async Task ExecuteAsyncShouldCreateUser()
+        public async Task ExecuteAsyncShouldCreateUserAndIssueTokens()
         {
             // Arrange
             var command = new RegisterUserCommand(
                 "user@test.com",
                 "password",
                 "Sofiane");
+
+            var expectedTokens = new AuthTokensDto("jwt-token", "refresh-token", 3600);
 
             _userRepositoryMock
                 .Setup(x => x.GetByEmailAsync(
@@ -55,14 +62,17 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 .Setup(x => x.Hash(command.Password))
                 .Returns("hashed-password");
 
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(
+                    It.Is<User>(u => u.Email.Value == command.Email),
+                    It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedTokens);
+
             // Act
-            User user = await _useCase.ExecuteAsync(command);
+            AuthTokensDto result = await _useCase.ExecuteAsync(command);
 
             // Assert
-            Assert.NotNull(user);
-            Assert.Equal("user@test.com", user.Email.Value);
-            Assert.Equal("Sofiane", user.DisplayName);
-            Assert.Equal("hashed-password", user.PasswordHash);
+            Assert.Equal(expectedTokens, result);
 
             _userRepositoryMock.Verify(
                 x => x.AddAsync(
@@ -93,10 +103,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 .ReturnsAsync(existingUser);
 
             // Act
-            Task<User> Action() => _useCase.ExecuteAsync(command);
+            Task<AuthTokensDto> Action() => _useCase.ExecuteAsync(command);
 
             // Assert : ConflictException (409), pas DomainException (400) — voir ConflictException.cs.
-            ConflictException exception = await Assert.ThrowsAsync<ConflictException>((Func<Task<User>>)Action);
+            ConflictException exception = await Assert.ThrowsAsync<ConflictException>((Func<Task<AuthTokensDto>>)Action);
 
             Assert.Equal(
                 "Un utilisateur existe déjà avec cette adresse email.",
@@ -110,6 +120,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             _passwordHasherMock.Verify(
                 x => x.Hash(It.IsAny<string>()),
+                Times.Never);
+
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -131,6 +145,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _passwordHasherMock
                 .Setup(x => x.Hash(command.Password))
                 .Returns("hashed-password");
+
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AuthTokensDto("jwt-token", "refresh-token", 3600));
 
             // Act
             await _useCase.ExecuteAsync(command);
@@ -164,6 +182,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 .Setup(x => x.Hash(command.Password))
                 .Returns("hashed-password");
 
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(It.IsAny<User>(), cancellationToken))
+                .ReturnsAsync(new AuthTokensDto("jwt-token", "refresh-token", 3600));
+
             // Act
             await _useCase.ExecuteAsync(
                 command,
@@ -180,6 +202,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 x => x.AddAsync(
                     It.IsAny<User>(),
                     cancellationToken),
+                Times.Once);
+
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(It.IsAny<User>(), cancellationToken),
                 Times.Once);
         }
     }

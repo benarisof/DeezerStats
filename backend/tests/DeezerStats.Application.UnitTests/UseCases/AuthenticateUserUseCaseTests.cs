@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
@@ -14,7 +15,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
     {
         private readonly Mock<IUserRepository> _userRepositoryMock;
         private readonly Mock<IPasswordHasher> _passwordHasherMock;
-        private readonly Mock<IAccessTokenGenerator> _accessTokenGeneratorMock;
+        private readonly Mock<IAuthTokenIssuer> _authTokenIssuerMock;
 
         private readonly AuthenticateUserUseCase _useCase;
 
@@ -22,12 +23,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
         {
             _userRepositoryMock = new Mock<IUserRepository>();
             _passwordHasherMock = new Mock<IPasswordHasher>();
-            _accessTokenGeneratorMock = new Mock<IAccessTokenGenerator>();
+            _authTokenIssuerMock = new Mock<IAuthTokenIssuer>();
 
             _useCase = new AuthenticateUserUseCase(
                 _userRepositoryMock.Object,
                 _passwordHasherMock.Object,
-                _accessTokenGeneratorMock.Object,
+                _authTokenIssuerMock.Object,
                 new AuthenticateUserCommandValidator());
         }
 
@@ -45,9 +46,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 "hashed-password",
                 "Sofiane");
 
-            var expectedToken = new AccessTokenDto(
-                "jwt-token",
-                DateTime.UtcNow.AddHours(1));
+            var expectedTokens = new AuthTokensDto("jwt-token", "refresh-token", 3600);
 
             _userRepositoryMock
                 .Setup(x => x.GetByEmailAsync(
@@ -61,15 +60,15 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     user.PasswordHash))
                 .Returns(true);
 
-            _accessTokenGeneratorMock
-                .Setup(x => x.Generate(user))
-                .Returns(expectedToken);
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(user, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedTokens);
 
             // Act
-            AccessTokenDto result = await _useCase.ExecuteAsync(command);
+            AuthTokensDto result = await _useCase.ExecuteAsync(command);
 
             // Assert
-            Assert.Equal(expectedToken, result);
+            Assert.Equal(expectedTokens, result);
 
             _passwordHasherMock.Verify(
                 x => x.Verify(
@@ -77,8 +76,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     user.PasswordHash),
                 Times.Once);
 
-            _accessTokenGeneratorMock.Verify(
-                x => x.Generate(user),
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(user, It.IsAny<CancellationToken>()),
                 Times.Once);
         }
 
@@ -109,9 +108,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     It.IsAny<string>()),
                 Times.Never);
 
-            _accessTokenGeneratorMock.Verify(
-                x => x.Generate(
-                    It.IsAny<User>()),
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(
+                    It.IsAny<User>(),
+                    It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -148,9 +148,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             await Assert.ThrowsAsync<AuthenticationFailedException>(
                 Action);
 
-            _accessTokenGeneratorMock.Verify(
-                x => x.Generate(
-                    It.IsAny<User>()),
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(
+                    It.IsAny<User>(),
+                    It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -175,9 +176,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     It.IsAny<CancellationToken>()),
                 Times.Never);
 
-            _accessTokenGeneratorMock.Verify(
-                x => x.Generate(
-                    It.IsAny<User>()),
+            _authTokenIssuerMock.Verify(
+                x => x.IssueAsync(
+                    It.IsAny<User>(),
+                    It.IsAny<CancellationToken>()),
                 Times.Never);
         }
     }

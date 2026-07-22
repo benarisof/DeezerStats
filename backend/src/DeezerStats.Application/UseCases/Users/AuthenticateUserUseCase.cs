@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
 using DeezerStats.Application.Ports.Repositories;
@@ -11,17 +12,16 @@ namespace DeezerStats.Application.UseCases.Users
     public class AuthenticateUserUseCase(
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
-        IAccessTokenGenerator accessTokenGenerator,
+        IAuthTokenIssuer authTokenIssuer,
         IValidator<AuthenticateUserCommand> validator) : IAuthenticateUserUseCase
     {
         private readonly IUserRepository _userRepository = userRepository;
         private readonly IPasswordHasher _passwordHasher = passwordHasher;
-        private readonly IAccessTokenGenerator _accessTokenGenerator =
-            accessTokenGenerator;
+        private readonly IAuthTokenIssuer _authTokenIssuer = authTokenIssuer;
 
         private readonly IValidator<AuthenticateUserCommand> _validator = validator;
 
-        public async Task<AccessTokenDto> ExecuteAsync(
+        public async Task<AuthTokensDto> ExecuteAsync(
             AuthenticateUserCommand command,
             CancellationToken ct = default)
         {
@@ -41,7 +41,7 @@ namespace DeezerStats.Application.UseCases.Users
                     "Email ou mot de passe invalide.");
             }
 
-            return _accessTokenGenerator.Generate(user);
+            return await _authTokenIssuer.IssueAsync(user, ct);
         }
     }
 }

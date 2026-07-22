@@ -195,10 +195,10 @@ public class StatsEndpointTests(CustomWebApplicationFactory factory) : IClassFix
         using HttpResponseMessage loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", loginCommand);
         loginResponse.EnsureSuccessStatusCode();
 
-        AccessTokenDto? token = await loginResponse.Content.ReadFromJsonAsync<AccessTokenDto>();
-        token.Should().NotBeNull();
+        AuthTokensDto? tokens = await loginResponse.Content.ReadFromJsonAsync<AuthTokensDto>();
+        tokens.Should().NotBeNull();
 
-        return token!.Token;
+        return tokens!.AccessToken;
     }
 
     private async Task SeedLargeListeningHistoryAsync(Guid userId, int albumCount)

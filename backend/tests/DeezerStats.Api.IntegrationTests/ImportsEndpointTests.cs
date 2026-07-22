@@ -134,9 +134,9 @@ public class ImportsEndpointTests(CustomWebApplicationFactory factory) : IClassF
         using HttpResponseMessage loginResponse = await client.PostAsJsonAsync("/api/v1/auth/login", loginCommand);
         loginResponse.EnsureSuccessStatusCode();
 
-        AccessTokenDto? token = await loginResponse.Content.ReadFromJsonAsync<AccessTokenDto>();
-        token.Should().NotBeNull();
+        AuthTokensDto? tokens = await loginResponse.Content.ReadFromJsonAsync<AuthTokensDto>();
+        tokens.Should().NotBeNull();
 
-        return token!.Token;
+        return tokens!.AccessToken;
     }
 }

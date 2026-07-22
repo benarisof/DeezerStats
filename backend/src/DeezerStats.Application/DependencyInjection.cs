@@ -1,3 +1,4 @@
+using DeezerStats.Application.Common;
 using DeezerStats.Application.UseCases.Albums;
 using DeezerStats.Application.UseCases.Artists;
 using DeezerStats.Application.UseCases.Import;
@@ -21,8 +22,12 @@ namespace DeezerStats.Application
         public static IServiceCollection AddApplication(this IServiceCollection services)
         {
             services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+            services.AddScoped<IAuthTokenIssuer, AuthTokenIssuer>();
             services.AddScoped<IRegisterUserUseCase, RegisterUserUseCase>();
             services.AddScoped<IAuthenticateUserUseCase, AuthenticateUserUseCase>();
+            services.AddScoped<IRefreshAccessTokenUseCase, RefreshAccessTokenUseCase>();
+            services.AddScoped<ILogoutUserUseCase, LogoutUserUseCase>();
+            services.AddScoped<IGetCurrentUserUseCase, GetCurrentUserUseCase>();
             services.AddScoped<IImportListeningHistoryUseCase, ImportListeningHistoryUseCase>();
             services.AddScoped<IGetOrEnrichTrackUseCase, GetOrEnrichTrackUseCase>();
             services.AddScoped<IGetOrEnrichAlbumUseCase, GetOrEnrichAlbumUseCase>();
