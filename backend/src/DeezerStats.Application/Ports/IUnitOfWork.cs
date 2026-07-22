@@ -11,6 +11,11 @@ namespace DeezerStats.Application.Ports
     /// </summary>
     public interface IUnitOfWork
     {
+        /// <summary>
+        /// Enregistre toutes les modifications apportées dans le contexte de la base de données.
+        /// </summary>
+        /// <param name="ct">Un jeton d'annulation pour propager la notification que l'opération doit être annulée.</param>
+        /// <returns>Le nombre d'objets écrits dans la base de données.</returns>
         public Task<int> SaveChangesAsync(CancellationToken ct = default);
 
         /// <summary>
@@ -21,6 +26,9 @@ namespace DeezerStats.Application.Ports
         /// ou échouer ensemble (voir RegisterUserUseCase : création de l'utilisateur + émission du
         /// refresh token).
         /// </summary>
+        /// <param name="operation">L'opération asynchrone à exécuter au sein de la transaction.</param>
+        /// <param name="ct">Un jeton d'annulation pour propager la notification que l'opération doit être annulée.</param>
+        /// <returns>Une tâche représentant l'opération asynchrone.</returns>
         public Task ExecuteInTransactionAsync(Func<Task> operation, CancellationToken ct = default);
     }
 }
