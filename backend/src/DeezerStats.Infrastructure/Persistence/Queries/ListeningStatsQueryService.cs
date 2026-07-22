@@ -204,9 +204,19 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
         /// utilisables directement dans une comparaison avec ListeningEvent.ListenedAt : le début
         /// de la journée pour "from", la fin de la journée (23:59:59.9999999) pour "to" afin
         /// d'inclure toute la journée de fin, conformément à la sémantique "incluse" du contrat OpenAPI.
+        ///
+        /// DateOnly.ToDateTime produit systématiquement un DateTimeKind.Unspecified, alors que
+        /// ListenedAt est mappée en "timestamp with time zone" (voir ApplicationDbContext) : Npgsql
+        /// refuse d'écrire un DateTime Unspecified dans ce type de colonne ("Cannot write DateTime
+        /// with Kind=Unspecified [...], only UTC is supported"), ce qui faisait échouer en 500 tout
+        /// appel aux endpoints de consultation dès qu'un filtre from/to était fourni -- même bug que
+        /// celui déjà rencontré et corrigé côté import (voir ClosedXmlExcelParser).
         /// </summary>
         private static (DateTime? From, DateTime? To) ToInclusiveBounds(DateRange dateRange) =>
-            (dateRange.From?.ToDateTime(TimeOnly.MinValue), dateRange.To?.ToDateTime(TimeOnly.MaxValue));
+            (ToUtc(dateRange.From, TimeOnly.MinValue), ToUtc(dateRange.To, TimeOnly.MaxValue));
+
+        private static DateTime? ToUtc(DateOnly? date, TimeOnly time) =>
+            date.HasValue ? DateTime.SpecifyKind(date.Value.ToDateTime(time), DateTimeKind.Utc) : null;
 
         /// <summary>
         /// Plafonne un classement déjà trié (voir StatsRules.MaxRankedResults) puis en extrait la
