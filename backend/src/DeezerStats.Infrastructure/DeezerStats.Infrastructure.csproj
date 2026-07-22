@@ -5,6 +5,13 @@
     <PackageReference Include="ClosedXML" Version="0.105.0" />
     <PackageReference Include="MeiliSearch" Version="0.20.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <!-- Épinglage explicite : Npgsql.EntityFrameworkCore.PostgreSQL 10.0.3 n'exige que
+         Microsoft.EntityFrameworkCore.Relational >= 10.0.4, ce qui laissait NuGet résoudre cette
+         dépendance transitive à 10.0.4 pour ce projet seul, alors que Microsoft.EntityFrameworkCore.Design
+         10.0.10 (référencé par DeezerStats.Api pour l'outillage "dotnet ef") l'épingle à 10.0.10.
+         Deux versions différentes de la même dépendance transitive entre projets référencés par les
+         mêmes projets de test provoquaient l'avertissement MSB3277. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />

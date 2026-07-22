@@ -3,8 +3,10 @@ using DeezerStats.Api.Middleware;
 using DeezerStats.Application;
 using DeezerStats.Infrastructure;
 using DeezerStats.Infrastructure.Adapters.Security;
+using DeezerStats.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
@@ -64,6 +66,22 @@ builder.Services.AddAuthorizationBuilder()
         .Build());
 
 WebApplication app = builder.Build();
+
+// Applique automatiquement les migrations EF Core en attente au démarrage, pour qu'un utilisateur
+// n'ait jamais à lancer "dotnet ef database update" lui-même (voir docker-compose.yml : la base
+// Postgres démarre vide au premier "docker compose up"). Idempotent : sans effet si tout est déjà
+// à jour, donc sans risque à chaque redémarrage de "dotnet watch". Ignoré par le provider EF Core
+// InMemory (voir CustomWebApplicationFactory dans les tests d'intégration), qui ne supporte pas les
+// migrations relationnelles.
+using (IServiceScope migrationScope = app.Services.CreateScope())
+{
+    ApplicationDbContext dbContext = migrationScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+    if (dbContext.Database.IsRelational())
+    {
+        await dbContext.Database.MigrateAsync();
+    }
+}
 
 if (!app.Environment.IsDevelopment())
 {
