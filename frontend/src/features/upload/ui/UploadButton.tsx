@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/shared/ui/Button";
 import { Spinner } from "@/shared/ui/Spinner";
@@ -6,11 +6,30 @@ import { ApiError } from "@/shared/api/apiError";
 import { uploadListeningHistory } from "../api/uploadApi";
 import type { ImportReport } from "../model/types";
 
+/** Durée d'affichage du résultat d'import avant disparition automatique (voir l'effet ci-dessous).
+ * Exportée pour que le test associé puisse avancer précisément l'horloge simulée jusqu'à ce délai. */
+export const RESULT_DISMISS_DELAY_MS = 6000;
+
 export function UploadButton() {
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Le résultat (succès ou erreur) ne doit pas rester affiché indéfiniment : il disparaît de
+  // lui-même après quelques secondes, comme une notification classique.
+  useEffect(() => {
+    if (!report && !error) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setReport(null);
+      setError(null);
+    }, RESULT_DISMISS_DELAY_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [report, error]);
 
   const mutation = useMutation({
     mutationFn: uploadListeningHistory,
