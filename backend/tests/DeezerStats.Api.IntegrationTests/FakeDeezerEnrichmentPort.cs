@@ -23,7 +23,7 @@ public class FakeDeezerEnrichmentPort : IDeezerEnrichmentPort
 
     public Func<string, string, DeezerAlbumMetadata?> AlbumMetadataFactory { get; set; } = (_, _) => null;
 
-    public Func<string, DeezerArtistMetadata?> ArtistMetadataFactory { get; set; } = _ => null;
+    public Func<string, string?, DeezerArtistMetadata?> ArtistMetadataFactory { get; set; } = (_, _) => null;
 
     public Task<DeezerTrackMetadata?> FetchTrackMetadataAsync(Isrc isrc, CancellationToken ct = default) =>
         Task.FromResult(TrackMetadataFactory(isrc));
@@ -31,6 +31,6 @@ public class FakeDeezerEnrichmentPort : IDeezerEnrichmentPort
     public Task<DeezerAlbumMetadata?> FetchAlbumMetadataAsync(string albumTitle, string artistName, CancellationToken ct = default) =>
         Task.FromResult(AlbumMetadataFactory(albumTitle, artistName));
 
-    public Task<DeezerArtistMetadata?> FetchArtistMetadataAsync(string artistName, CancellationToken ct = default) =>
-        Task.FromResult(ArtistMetadataFactory(artistName));
+    public Task<DeezerArtistMetadata?> FetchArtistMetadataAsync(string artistName, string? knownAlbumTitle, CancellationToken ct = default) =>
+        Task.FromResult(ArtistMetadataFactory(artistName, knownAlbumTitle));
 }

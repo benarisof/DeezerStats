@@ -8,6 +8,9 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer.Dtos
     /// </summary>
     internal sealed class DeezerArtistSearchResult
     {
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
         [JsonPropertyName("picture_medium")]
         public string? PictureMedium { get; set; }
 

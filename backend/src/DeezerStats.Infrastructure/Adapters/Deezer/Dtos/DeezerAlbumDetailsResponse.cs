@@ -26,5 +26,8 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer.Dtos
 
         [JsonPropertyName("duration")]
         public int? Duration { get; set; }
+
+        [JsonPropertyName("artist")]
+        public DeezerAlbumArtistStub? Artist { get; set; }
     }
 }

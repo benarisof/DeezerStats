@@ -124,14 +124,15 @@ namespace DeezerStats.Infrastructure.UnitTests.Adapters.Deezer
         }
 
         [Fact]
-        public async Task FetchArtistMetadataAsyncWhenArtistFoundShouldReturnMetadata()
+        public async Task FetchArtistMetadataAsyncByNameWhenArtistFoundWithMatchingNameShouldReturnMetadata()
         {
-            // Arrange : contrairement à la recherche d'album, un seul appel HTTP suffit — les
-            // photos sont déjà présentes dans les résultats de recherche d'artiste.
+            // Arrange : pas d'album connu (knownAlbumTitle: null) -- repli direct sur la recherche
+            // par nom. Le nom retourné par Deezer correspond au nom recherché, donc accepté.
             const string searchJson = """
                 {
                     "data": [
                         {
+                            "name": "Daft Punk",
                             "picture_medium": "https://cdn-deezer.com/medium.jpg",
                             "picture_big": "https://cdn-deezer.com/big.jpg",
                             "picture_xl": "https://cdn-deezer.com/xl.jpg"
@@ -142,11 +143,37 @@ namespace DeezerStats.Infrastructure.UnitTests.Adapters.Deezer
             DeezerHttpEnrichmentAdapter adapter = CreateAdapter(new StubHttpMessageHandler(StubHttpMessageHandler.Json(searchJson)));
 
             // Act
-            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk");
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk", knownAlbumTitle: null);
 
             // Assert
             result.Should().NotBeNull();
             result!.CoverUrl.Should().Be("https://cdn-deezer.com/xl.jpg");
+        }
+
+        [Fact]
+        public async Task FetchArtistMetadataAsyncByNameWhenReturnedNameDoesNotMatchShouldReturnNull()
+        {
+            // Arrange : la recherche par nom seul est ambiguë -- Deezer renvoie son résultat le plus
+            // "pertinent", pas forcément le bon artiste (homonyme). Un nom retourné différent du nom
+            // recherché ne doit jamais être accepté : mieux vaut aucune couverture qu'une couverture
+            // du mauvais artiste (voir le point 6 de la revue de code, "covers d'artiste mauvaises").
+            const string searchJson = """
+                {
+                    "data": [
+                        {
+                            "name": "Un Artiste Homonyme",
+                            "picture_xl": "https://cdn-deezer.com/wrong-artist.jpg"
+                        }
+                    ]
+                }
+                """;
+            DeezerHttpEnrichmentAdapter adapter = CreateAdapter(new StubHttpMessageHandler(StubHttpMessageHandler.Json(searchJson)));
+
+            // Act
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Le Bon Artiste", knownAlbumTitle: null);
+
+            // Assert
+            result.Should().BeNull();
         }
 
         [Fact]
@@ -157,7 +184,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Adapters.Deezer
             DeezerHttpEnrichmentAdapter adapter = CreateAdapter(new StubHttpMessageHandler(StubHttpMessageHandler.Json(searchJson)));
 
             // Act
-            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Artiste Inconnu");
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Artiste Inconnu", knownAlbumTitle: null);
 
             // Assert
             result.Should().BeNull();
@@ -171,10 +198,70 @@ namespace DeezerStats.Infrastructure.UnitTests.Adapters.Deezer
                 new StubHttpMessageHandler(StubHttpMessageHandler.Throwing(new HttpRequestException("Deezer indisponible."))));
 
             // Act
-            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk");
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk", knownAlbumTitle: null);
 
             // Assert
             result.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task FetchArtistMetadataAsyncWithKnownAlbumShouldResolveViaAlbumLinkWithoutSearchingByName()
+        {
+            // Arrange : deux appels HTTP (recherche album puis détails album, comme
+            // FetchAlbumMetadataAsync) -- la couverture vient du sous-objet "artist" imbriqué dans la
+            // réponse de détails, jamais de "search/artist" (lien structuré album -> artiste Deezer,
+            // fiable, contrairement à la recherche par nom seul).
+            const string albumSearchJson = """{"data": [{"id": 302127}], "total": 1}""";
+            const string albumDetailsJson = """
+                {
+                    "cover_xl": "https://cdn-deezer.com/album-xl.jpg",
+                    "artist": {
+                        "picture_medium": "https://cdn-deezer.com/artist-medium.jpg",
+                        "picture_big": "https://cdn-deezer.com/artist-big.jpg",
+                        "picture_xl": "https://cdn-deezer.com/artist-xl.jpg"
+                    }
+                }
+                """;
+            DeezerHttpEnrichmentAdapter adapter = CreateAdapter(new StubHttpMessageHandler(
+                StubHttpMessageHandler.Json(albumSearchJson),
+                StubHttpMessageHandler.Json(albumDetailsJson)));
+
+            // Act
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk", knownAlbumTitle: "Discovery");
+
+            // Assert : si un 3e appel HTTP (search/artist) avait été tenté, StubHttpMessageHandler
+            // aurait levé une InvalidOperationException (file de réponses épuisée) -- confirme que
+            // seuls les 2 appels liés à l'album ont eu lieu.
+            result.Should().NotBeNull();
+            result!.CoverUrl.Should().Be("https://cdn-deezer.com/artist-xl.jpg");
+        }
+
+        [Fact]
+        public async Task FetchArtistMetadataAsyncWithKnownAlbumWhenAlbumNotFoundShouldFallBackToNameSearch()
+        {
+            // Arrange : la recherche album ne trouve rien (1er appel) -- repli sur la recherche par
+            // nom (2e appel), toujours tentée avant d'abandonner.
+            const string albumSearchJson = """{"data": [], "total": 0}""";
+            const string artistSearchJson = """
+                {
+                    "data": [
+                        {
+                            "name": "Daft Punk",
+                            "picture_xl": "https://cdn-deezer.com/via-name-search.jpg"
+                        }
+                    ]
+                }
+                """;
+            DeezerHttpEnrichmentAdapter adapter = CreateAdapter(new StubHttpMessageHandler(
+                StubHttpMessageHandler.Json(albumSearchJson),
+                StubHttpMessageHandler.Json(artistSearchJson)));
+
+            // Act
+            DeezerArtistMetadata? result = await adapter.FetchArtistMetadataAsync("Daft Punk", knownAlbumTitle: "Album Introuvable Sur Deezer");
+
+            // Assert
+            result.Should().NotBeNull();
+            result!.CoverUrl.Should().Be("https://cdn-deezer.com/via-name-search.jpg");
         }
 
         private static DeezerHttpEnrichmentAdapter CreateAdapter(HttpMessageHandler handler)

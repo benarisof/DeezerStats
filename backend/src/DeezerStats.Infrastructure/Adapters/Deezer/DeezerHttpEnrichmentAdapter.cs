@@ -59,6 +59,76 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
 
         public async Task<DeezerAlbumMetadata?> FetchAlbumMetadataAsync(string albumTitle, string artistName, CancellationToken ct = default)
         {
+            DeezerAlbumDetailsResponse? details = await FetchAlbumDetailsAsync(artistName, albumTitle, ct);
+
+            if (details is null)
+            {
+                return null;
+            }
+
+            var coverUrl = details.CoverXl ?? details.CoverBig ?? details.CoverMedium;
+            DateOnly? releaseDate = DateOnly.TryParse(details.ReleaseDate, out DateOnly parsedDate)
+                ? parsedDate
+                : null;
+            Duration? duration = details.Duration is int seconds ? new Duration(seconds) : null;
+
+            return new DeezerAlbumMetadata(coverUrl, releaseDate, duration);
+        }
+
+        /// <summary>
+        /// Résout la couverture d'un artiste en priorité via un de ses albums déjà connus (le lien
+        /// album → artiste est une donnée structurée chez Deezer, donc fiable), et seulement en
+        /// repli via une recherche texte sur son seul nom (ambiguë : sujette aux homonymes -- voir
+        /// FetchArtistByNameAsync, qui n'accepte le résultat que si le nom retourné correspond).
+        /// </summary>
+        /// <param name="artistName">Nom de l'artiste, utilisé pour la recherche album et en repli pour la recherche par nom.</param>
+        /// <param name="knownAlbumTitle">Titre d'un album déjà connu de cet artiste, ou null si aucun n'est disponible.</param>
+        /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
+        /// <returns>Les métadonnées de l'artiste (couverture), ou null si aucune n'a pu être résolue de façon fiable.</returns>
+        public async Task<DeezerArtistMetadata?> FetchArtistMetadataAsync(string artistName, string? knownAlbumTitle, CancellationToken ct = default)
+        {
+            if (!string.IsNullOrWhiteSpace(knownAlbumTitle))
+            {
+                DeezerAlbumDetailsResponse? albumDetails = await FetchAlbumDetailsAsync(artistName, knownAlbumTitle, ct);
+                var coverViaAlbum = albumDetails?.Artist?.PictureXl
+                    ?? albumDetails?.Artist?.PictureBig
+                    ?? albumDetails?.Artist?.PictureMedium;
+
+                if (!string.IsNullOrWhiteSpace(coverViaAlbum))
+                {
+                    return new DeezerArtistMetadata(coverViaAlbum);
+                }
+            }
+
+            return await FetchArtistByNameAsync(artistName, ct);
+        }
+
+        /// <summary>
+        /// Distingue les échecs "attendus" d'appel à Deezer (réseau, JSON malformé, timeout déclenché
+        /// par la politique de résilience) — à absorber en renvoyant null — d'une annulation
+        /// explicitement demandée par l'appelant (son <see cref="CancellationToken"/>), qui doit au
+        /// contraire continuer à se propager normalement.
+        /// </summary>
+        private static bool IsTransientEnrichmentFailure(Exception ex) => ex switch
+        {
+            HttpRequestException => true,
+            JsonException => true,
+            TimeoutRejectedException => true,
+            OperationCanceledException => false,
+            _ => false,
+        };
+
+        private static bool NamesMatch(string left, string right) =>
+            string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// Recherche album + détails (<c>GET search/album</c> puis <c>GET album/{id}</c>), factorisée
+        /// entre FetchAlbumMetadataAsync (couverture/date de sortie/durée de l'album lui-même) et
+        /// FetchArtistMetadataAsync (couverture de l'artiste via le sous-objet "artist" de la même
+        /// réponse de détails).
+        /// </summary>
+        private async Task<DeezerAlbumDetailsResponse?> FetchAlbumDetailsAsync(string artistName, string albumTitle, CancellationToken ct)
+        {
             try
             {
                 var query = $"artist:\"{artistName}\" album:\"{albumTitle}\"";
@@ -90,18 +160,7 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
                 DeezerAlbumDetailsResponse? details = await detailsResponse.Content
                     .ReadFromJsonAsync<DeezerAlbumDetailsResponse>(_jsonOptions, ct);
 
-                if (details is null || details.Error is not null)
-                {
-                    return null;
-                }
-
-                var coverUrl = details.CoverXl ?? details.CoverBig ?? details.CoverMedium;
-                DateOnly? releaseDate = DateOnly.TryParse(details.ReleaseDate, out DateOnly parsedDate)
-                    ? parsedDate
-                    : null;
-                Duration? duration = details.Duration is int seconds ? new Duration(seconds) : null;
-
-                return new DeezerAlbumMetadata(coverUrl, releaseDate, duration);
+                return details is null || details.Error is not null ? null : details;
             }
             catch (Exception ex) when (IsTransientEnrichmentFailure(ex))
             {
@@ -109,7 +168,14 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
             }
         }
 
-        public async Task<DeezerArtistMetadata?> FetchArtistMetadataAsync(string artistName, CancellationToken ct = default)
+        /// <summary>
+        /// Repli : recherche par nom seul (<c>GET search/artist</c>). Une recherche texte libre sur
+        /// un seul champ est intrinsèquement ambiguë (homonymes, classement par pertinence Deezer et
+        /// non par exactitude) : le résultat n'est accepté que si le nom qu'il porte correspond,
+        /// une fois normalisé, au nom recherché -- mieux vaut aucune couverture qu'une couverture du
+        /// mauvais artiste.
+        /// </summary>
+        private async Task<DeezerArtistMetadata?> FetchArtistByNameAsync(string artistName, CancellationToken ct)
         {
             try
             {
@@ -130,6 +196,12 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
                 }
 
                 DeezerArtistSearchResult result = payload.Data[0];
+
+                if (result.Name is null || !NamesMatch(result.Name, artistName))
+                {
+                    return null;
+                }
+
                 var coverUrl = result.PictureXl ?? result.PictureBig ?? result.PictureMedium;
 
                 return new DeezerArtistMetadata(coverUrl);
@@ -139,20 +211,5 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
                 return null;
             }
         }
-
-        /// <summary>
-        /// Distingue les échecs "attendus" d'appel à Deezer (réseau, JSON malformé, timeout déclenché
-        /// par la politique de résilience) — à absorber en renvoyant null — d'une annulation
-        /// explicitement demandée par l'appelant (son <see cref="CancellationToken"/>), qui doit au
-        /// contraire continuer à se propager normalement.
-        /// </summary>
-        private static bool IsTransientEnrichmentFailure(Exception ex) => ex switch
-        {
-            HttpRequestException => true,
-            JsonException => true,
-            TimeoutRejectedException => true,
-            OperationCanceledException => false,
-            _ => false,
-        };
     }
 }

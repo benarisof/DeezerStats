@@ -1,6 +1,7 @@
 using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
 
 namespace DeezerStats.Application.UseCases.Artists
@@ -13,10 +14,12 @@ namespace DeezerStats.Application.UseCases.Artists
     /// </summary>
     public class GetOrEnrichArtistUseCase(
         IArtistRepository artistRepository,
+        IAlbumRepository albumRepository,
         IDeezerEnrichmentPort deezerPort,
         IUnitOfWork unitOfWork) : IGetOrEnrichArtistUseCase
     {
         private readonly IArtistRepository _artistRepository = artistRepository;
+        private readonly IAlbumRepository _albumRepository = albumRepository;
         private readonly IDeezerEnrichmentPort _deezerPort = deezerPort;
         private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
@@ -36,15 +39,21 @@ namespace DeezerStats.Application.UseCases.Artists
                 return artist;
             }
 
-            // 3. Fallback : Appel à l'API externe Deezer
-            DeezerArtistMetadata? deezerMetadata = await _deezerPort.FetchArtistMetadataAsync(artist.Name, ct);
+            // 3. Un album déjà connu de cet artiste permet à Deezer de résoudre sa couverture via le
+            // lien structuré album -> artiste (recherche album), bien plus fiable qu'une recherche
+            // par nom d'artiste seul, sujette aux homonymes (voir DeezerHttpEnrichmentAdapter).
+            IReadOnlyList<Album> knownAlbums = await _albumRepository.GetByArtistIdsAsync([artist.Id], ct);
+            var knownAlbumTitle = knownAlbums.Count > 0 ? knownAlbums[0].Title : null;
+
+            // 4. Appel à l'API externe Deezer
+            DeezerArtistMetadata? deezerMetadata = await _deezerPort.FetchArtistMetadataAsync(artist.Name, knownAlbumTitle, ct);
 
             if (deezerMetadata is not null)
             {
-                // 4. Mutation de l'agrégat dans le domaine
+                // 5. Mutation de l'agrégat dans le domaine
                 artist.EnrichCover(deezerMetadata.CoverUrl);
 
-                // 5. Persistance des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
+                // 6. Persistance des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
                 // changement, voir IArtistRepository.UpdateAsync -- SaveChangesAsync déclenche
                 // l'écriture réelle).
                 await _artistRepository.UpdateAsync(artist, ct);

@@ -2,6 +2,7 @@ using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Artists;
+using DeezerStats.Domain.Aggregates.AlbumAggregate;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
 using FluentAssertions;
 using NSubstitute;
@@ -11,13 +12,19 @@ namespace DeezerStats.Application.UnitTests.UseCases
     public class GetOrEnrichArtistUseCaseTests
     {
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
+        private readonly IAlbumRepository _albumRepository = Substitute.For<IAlbumRepository>();
         private readonly IDeezerEnrichmentPort _deezerPort = Substitute.For<IDeezerEnrichmentPort>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly GetOrEnrichArtistUseCase _useCase;
 
         public GetOrEnrichArtistUseCaseTests()
         {
-            _useCase = new GetOrEnrichArtistUseCase(_artistRepository, _deezerPort, _unitOfWork);
+            // Par défaut, aucun album connu (voir ExecuteAsyncShouldPassKnownAlbumTitleToDeezerPort
+            // pour le cas où un album existe) : couvre le repli direct sur la recherche par nom.
+            _albumRepository.GetByArtistIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(new List<Album>());
+
+            _useCase = new GetOrEnrichArtistUseCase(_artistRepository, _albumRepository, _deezerPort, _unitOfWork);
         }
 
         [Fact]
@@ -39,7 +46,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result!.IsEnriched.Should().BeTrue();
 
             // Vérification : Deezer ne doit JAMAIS être appelé si la BDD est à jour
-            await _deezerPort.DidNotReceiveWithAnyArgs().FetchArtistMetadataAsync(default!, default);
+            await _deezerPort.DidNotReceiveWithAnyArgs().FetchArtistMetadataAsync(default!, default, default);
             await _artistRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
             await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
         }
@@ -52,7 +59,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var metadata = new DeezerArtistMetadata("https://deezer.com/artist-cover.jpg");
 
             _artistRepository.GetByIdAsync(artist.Id, Arg.Any<CancellationToken>()).Returns(artist);
-            _deezerPort.FetchArtistMetadataAsync(artist.Name, Arg.Any<CancellationToken>()).Returns(metadata);
+            _deezerPort.FetchArtistMetadataAsync(artist.Name, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(metadata);
 
             var request = new GetOrEnrichArtistRequest(artist.Id);
 
@@ -71,6 +78,31 @@ namespace DeezerStats.Application.UnitTests.UseCases
         }
 
         [Fact]
+        public async Task ExecuteAsyncShouldPassKnownAlbumTitleToDeezerPort()
+        {
+            // Arrange : un album déjà connu de l'artiste doit être transmis au port, pour que
+            // l'adaptateur puisse résoudre la couverture via le lien album -> artiste de Deezer
+            // plutôt que par une recherche sur le seul nom (voir DeezerHttpEnrichmentAdapter).
+            var artist = new Artist(Guid.NewGuid(), "Daft Punk");
+            var album = new Album(Guid.NewGuid(), "Discovery", artist.Id);
+            var metadata = new DeezerArtistMetadata("https://deezer.com/artist-cover.jpg");
+
+            _artistRepository.GetByIdAsync(artist.Id, Arg.Any<CancellationToken>()).Returns(artist);
+            _albumRepository.GetByArtistIdsAsync(Arg.Any<IEnumerable<Guid>>(), Arg.Any<CancellationToken>())
+                .Returns(new List<Album> { album });
+            _deezerPort.FetchArtistMetadataAsync(artist.Name, "Discovery", Arg.Any<CancellationToken>()).Returns(metadata);
+
+            var request = new GetOrEnrichArtistRequest(artist.Id);
+
+            // Act
+            Artist? result = await _useCase.ExecuteAsync(request);
+
+            // Assert
+            result!.CoverUrl.Should().Be("https://deezer.com/artist-cover.jpg");
+            await _deezerPort.Received(1).FetchArtistMetadataAsync(artist.Name, "Discovery", Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
         public async Task ExecuteAsyncWhenDeezerHasNoPictureShouldReturnArtistUnenriched()
         {
             // Arrange : Deezer répond, mais sans photo (voir DeezerArtistMetadata.CoverUrl, nullable) —
@@ -79,7 +111,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             var metadata = new DeezerArtistMetadata(CoverUrl: null);
 
             _artistRepository.GetByIdAsync(artist.Id, Arg.Any<CancellationToken>()).Returns(artist);
-            _deezerPort.FetchArtistMetadataAsync(artist.Name, Arg.Any<CancellationToken>()).Returns(metadata);
+            _deezerPort.FetchArtistMetadataAsync(artist.Name, Arg.Any<string?>(), Arg.Any<CancellationToken>()).Returns(metadata);
 
             var request = new GetOrEnrichArtistRequest(artist.Id);
 
@@ -110,7 +142,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             // Assert
             result.Should().BeNull();
-            await _deezerPort.DidNotReceiveWithAnyArgs().FetchArtistMetadataAsync(default!, default);
+            await _deezerPort.DidNotReceiveWithAnyArgs().FetchArtistMetadataAsync(default!, default, default);
         }
     }
 }
