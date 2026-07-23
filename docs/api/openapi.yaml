@@ -4,10 +4,10 @@ info:
   description: >
     Contrat d'API pour la consultation des statistiques d'écoute Deezer
     (tops, historique, détail album/artiste, recherche, import de fichier).
-    Ce document est la source de vérité durant les phases 1 à 10 : le frontend
-    peut être développé contre un mock généré depuis ce fichier pendant que
-    le backend implémente réellement chaque endpoint.
-  version: "0.1.0"
+    Décrit l'API réellement implémentée (backend .NET + frontend React), pas
+    un contrat prospectif : tenu à jour au fil des évolutions de chaque
+    endpoint.
+  version: "1.0.0"
 servers:
   - url: http://localhost:5231/api/v1
     description: Environnement de développement local
@@ -111,6 +111,7 @@ paths:
             schema: { $ref: "#/components/schemas/RefreshRequest" }
       responses:
         "204": { description: Déconnexion effectuée }
+        "401": { $ref: "#/components/responses/Unauthorized" }
 
   /auth/me:
     get:
@@ -264,11 +265,19 @@ paths:
         - name: q
           in: query
           required: true
-          description: Doit contenir au moins 4 caractères
-          schema: { type: string, minLength: 4 }
+          description: >
+            Absent, vide ou blanc (espaces uniquement) : rejeté en 400 par la
+            validation implicite d'ASP.NET Core sur ce paramètre non-nullable
+            (message générique "The q field is required.", avant même
+            d'atteindre GetSearchSuggestionsUseCase). Présent avec 1 à 3
+            caractères non blancs : accepté (200), mais renvoie une liste
+            vide -- le seuil de 4 caractères n'est pas remonté en erreur.
+          schema: { type: string }
       responses:
         "200":
-          description: Liste de suggestions (albums / artistes / morceaux)
+          description: >
+            Liste de suggestions (albums / artistes / morceaux). Vide si la
+            requête fait moins de 4 caractères après trim.
           content:
             application/json:
               schema:
@@ -286,7 +295,13 @@ paths:
         - name: q
           in: query
           required: true
-          schema: { type: string, minLength: 1 }
+          description: >
+            Absent, vide ou blanc (espaces uniquement) : rejeté en 400 par la
+            validation implicite d'ASP.NET Core sur ce paramètre non-nullable
+            (message générique "The q field is required."). Le traitement
+            "requête vide -> page de résultats vide" de SearchCatalogUseCase
+            n'est donc jamais atteignable via cet endpoint HTTP.
+          schema: { type: string }
         - $ref: "#/components/parameters/Page"
         - $ref: "#/components/parameters/PageSize"
       responses:
@@ -295,6 +310,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/SearchResultsPage" }
+        "400": { $ref: "#/components/responses/ValidationError" }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /imports:
@@ -381,21 +397,41 @@ components:
   schemas:
     ProblemDetails:
       type: object
-      description: Format d'erreur RFC 7807, standard ASP.NET Core.
+      description: >
+        Format d'erreur RFC 7807. Deux origines possibles pour un 400, avec
+        un contenu différent : (1) ExceptionHandlingMiddleware traduit une
+        ValidationException FluentValidation en objet minimal (title/status/
+        detail/errors, en français, sans type ni traceId) ; (2) un paramètre
+        requis absent/vide/blanc (ex. q sur /search) est rejeté en amont par
+        la validation implicite d'ASP.NET Core sur les types non-nullables,
+        avec un message générique en anglais et type/traceId renseignés.
+        Les autres statuts (401, 404, 409) suivent toujours la forme (1).
       properties:
         type: { type: string }
         title: { type: string }
         status: { type: integer }
         detail: { type: string }
         traceId: { type: string }
+        errors:
+          type: object
+          description: >
+            Présent uniquement pour les erreurs de validation (400) : erreurs
+            de champ regroupées par nom de propriété (voir
+            ExceptionHandlingMiddleware, ValidationException). Absent pour les
+            autres types d'erreur (409, 401, 404, ...).
+          additionalProperties:
+            type: array
+            items: { type: string }
+          example:
+            Email: ["L'adresse email est obligatoire."]
 
     RegisterRequest:
       type: object
-      required: [email, password]
+      required: [email, password, displayName]
       properties:
         email: { type: string, format: email }
         password: { type: string, format: password, minLength: 8 }
-        displayName: { type: string }
+        displayName: { type: string, maxLength: 100 }
 
     LoginRequest:
       type: object
@@ -415,7 +451,7 @@ components:
       properties:
         accessToken: { type: string }
         refreshToken: { type: string }
-        expiresInSeconds: { type: integer, example: 900 }
+        expiresInSeconds: { type: integer, example: 3600 }
 
     UserProfile:
       type: object

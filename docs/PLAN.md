@@ -2,7 +2,7 @@
 
 Ce document découpe la réalisation de la solution en phases, chaque phase en tickets.
 La progression suit l'architecture hexagonale : Domain → Application → Infrastructure →
-API → Frontend → Qualité/Perf → Déploiement. Statut au 2026-07-21, basé sur l'historique
+API → Frontend → Qualité/Perf → Déploiement. Statut au 2026-07-23, basé sur l'historique
 Git et le code existant.
 
 Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
@@ -15,14 +15,14 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 1.2 | Conventions de code (.editorconfig, analyzers .NET + StyleCop, Prettier, oxlint) | ✅ |
 | 1.3 | CI GitHub Actions backend (build/format/test) et frontend (lint/format/build) | ✅ |
 | 1.4 | docker-compose de dev (postgres, meilisearch, api hot-reload, frontend hot-reload) | ✅ |
-| 1.5 | Contrat OpenAPI v0.1.0 (auth, stats, tops, historique, item, recherche, import) | ✅ |
+| 1.5 | Contrat OpenAPI (auth, stats, tops, historique, item, recherche, import), v1.0.0 depuis l'audit de conformité (voir 15.7) | ✅ |
 
 ## Phase 2 — Domain Layer (DDD) ✅
 
 | # | Ticket | Statut |
 |---|--------|--------|
 | 2.1 | Aggregates `Track`, `User` + entités `Album`, `Artist`, `ListeningEvent` | ✅ |
-| 2.2 | Value Objects (`DateRange`, `Duration`, `Email`, `Isrc`, `PlayCount`) + invariants | ✅ |
+| 2.2 | Value Objects (`DateRange`, `Duration`, `Email`, `Isrc`, ~~`PlayCount`~~) + invariants — `PlayCount` n'a jamais été utilisé (les compteurs sont de simples `int` calculés par `.Count()`) et a été supprimé comme code mort (voir 15.6) | ✅ |
 | 2.3 | Décision ADR : la page "item artiste" n'a pas de durée/date de sortie propres → remplacées par des agrégats (nb d'albums/morceaux distincts) | ✅ |
 | 2.4 | Tests unitaires domaine (TDD) | ✅ |
 
@@ -122,21 +122,21 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 
 | # | Ticket | Statut |
 |---|--------|--------|
-| 12.1 | Page d'accueil (top 10 albums/artistes/morceaux, compteurs) — covers pas encore affichées | 🔶 |
-| 12.2 | Pages Top Albums / Top Artistes / Top Morceaux (top 100, pagination) | ✅ |
+| 12.1 | Page d'accueil : 3 carrousels défilants (top albums/artistes/morceaux) avec cover, infos et nombre d'écoutes par carte (`Carousel` + `MediaCard`, scroll-snap natif, flèches conditionnelles) | ✅ |
+| 12.2 | Pages Top Albums / Top Artistes / Top Morceaux : mosaïque de cartes avec cover (grille responsive densifiée, 25 éléments/page au lieu de 20) + pagination | ✅ |
 | 12.3 | Page Historique (100 derniers morceaux) | ✅ |
-| 12.4 | Page Item (détail album ou artiste, liste des tracks triée par écoutes) | ✅ |
+| 12.4 | Page Item (détail album ou artiste : cover, liste des tracks triée par écoutes) | ✅ |
 | 12.5 | Composant recherche : suggestions dès 4 caractères, clic ou Entrée — navigation clavier (flèches) manquante | 🔶 |
-| 12.6 | Composant upload Excel + affichage du rapport d'import | ✅ |
+| 12.6 | Composant upload Excel + affichage du rapport d'import — bouton restylé (forme pill, libellé raccourci, curseur au survol) | ✅ |
 | 12.7 | Sélecteur de plage de dates connecté aux query params (répercuté sur toutes les pages) | ✅ |
-| 12.8 | Charte graphique inspirée de Deezer (actuellement un violet générique, pas de branding) | ⬜ |
-| 12.9 | Affichage des covers (albums/artistes/morceaux) sur toutes les pages de consultation | ⬜ |
+| 12.8 | Charte graphique sombre inspirée de Deezer : fond quasi-noir, texte blanc/mauve, accent violet, cartes/covers arrondies avec effet hover (thème unique, piloté par les tokens Tailwind existants dans `index.css`) | ✅ |
+| 12.9 | Affichage des covers (albums/artistes/morceaux) : fait sur l'accueil, les pages Top et les pages détail album/artiste — pas encore sur l'historique ni les résultats de recherche | 🔶 |
 
 ## Phase 13 — Qualité, performance, tests end-to-end 🔶
 
 | # | Ticket | Statut |
 |---|--------|--------|
-| 13.1 | Tests frontend (Vitest + Testing Library), CI activée — couverture initiale : `authStore` (login/register/logout/bootstrap + réaction à un 401 non récupérable), `httpClient` (refresh automatique, single-flight, gestion d'erreurs), `ProtectedRoute`, utilitaires (`cn`, `toQueryString`, `ApiError`) | ✅ |
+| 13.1 | Tests frontend (Vitest + Testing Library), CI activée — 51 tests / 9 fichiers : `authStore` (login/register/logout/bootstrap + réaction à un 401 non récupérable), `httpClient` (refresh automatique, single-flight, gestion d'erreurs), `ProtectedRoute`, `UploadButton` (affichage/disparition auto du rapport d'import), utilitaires (`cn`, `toQueryString`, `ApiError`, `formatCount`, `datePresets`) — aucune page ni composant de présentation (`MediaCard`, `Carousel`, `SearchBox`...) n'a de test dédié | ✅ |
 | 13.2 | Tests e2e (Playwright) sur les parcours principaux (connexion, upload, navigation tops, recherche) | ⬜ |
 | 13.3 | Audit performance (indices DB, pagination/infinite scroll, lazy loading des covers, cache HTTP) | ⬜ |
 | 13.4 | Accessibilité (a11y) et responsive | ⬜ |
@@ -150,12 +150,30 @@ Légende : ✅ fait · 🔶 partiellement fait · ⬜ à faire
 | 14.3 | Documentation de déploiement + README complet |
 | 14.4 | (Optionnel) pipeline CD |
 
+## Phase 15 — Revue de code, dette technique & documentation ✅
+
+| # | Ticket | Statut |
+|---|--------|--------|
+| 15.1 | Revue de code backend complète (architecture hexagonale, complexité, craftsmanship, perf/mémoire, couverture de tests) | ✅ |
+| 15.2 | Cohérence du pattern Unit of Work : les repositories ne committent plus eux-mêmes (`AddAsync`/`UpdateAsync` ne font plus que suivre les changements) — c'est le use case qui pilote explicitement `IUnitOfWork.SaveChangesAsync()`, y compris pour les écritures multi-entités (ex. `RegisterUserUseCase`) | ✅ |
+| 15.3 | Stats de la page d'accueil : agrégation poussée en SQL (`GROUP BY` via projection en type anonyme) plutôt qu'en mémoire | ✅ |
+| 15.4 | Garde-fou de démarrage sur `Meilisearch:MasterKey` (symétrique à celui déjà existant sur `Jwt:Key`) | ✅ |
+| 15.5 | Couverture de tests pour `SearchCatalogUseCase` / `GetSearchSuggestionsUseCase` / `SearchController`, seul trou net identifié dans la couverture backend | ✅ |
+| 15.6 | Suppression du code mort : Value Object `PlayCount` (jamais référencé), `NotFoundException` (jamais levée, tous les 404 passent par un retour `null` traduit en contrôleur) | ✅ |
+| 15.7 | Audit et mise à jour du contrat OpenAPI pour coller au comportement réel de l'API (vérifié empiriquement, pas seulement relu) : champ `errors` manquant sur `ProblemDetails`, `displayName` réellement obligatoire à l'inscription, comportement réel des paramètres de recherche vides/blancs (400 immédiat, pas le traitement "gracieux" du use case), deux formats de réponse 400 distincts selon l'origine de l'erreur, exemple `expiresInSeconds` corrigé | ✅ |
+| 15.8 | Revue de code frontend + activation du mode strict TypeScript (0 erreur à l'activation, le code était déjà conforme) | ✅ |
+| 15.9 | Intégration des covers (albums/artistes/morceaux) et charte graphique sombre inspirée de Deezer — voir 12.1/12.8/12.9 | ✅ |
+| 15.10 | Documentation fonctionnelle et technique (`docs/FUNCTIONAL.md`, `docs/TECHNICAL.md`) | ✅ |
+
 ---
 
 ## Prochaine étape suggérée
 
-Le backend (phases 1 à 10) et le squelette frontend (phase 11) sont terminés ; le parcours
-register → login → navigation → logout fonctionne de bout en bout contre la vraie API. Il reste :
-finir les deux tickets 🔶 de la phase 12 (covers, navigation clavier), puis attaquer la phase 13
-(tests frontend, e2e, perf, a11y) — actuellement le point le plus faible de la solution, aucun test
-frontend n'existe — et enfin la phase 14 (déploiement).
+Le backend (phases 1 à 10), le frontend (phases 11 à 12, hors deux tickets 🔶 mineurs) et une
+passe de revue de code + documentation (phase 15) sont terminés ; le parcours register → login →
+import → navigation (covers comprises) → logout fonctionne de bout en bout contre la vraie API,
+avec une charte graphique sombre proche des codes visuels Deezer. Il reste : les deux tickets 🔶
+de la phase 12 (covers sur historique/recherche, navigation clavier dans les suggestions), puis
+la suite de la phase 13 (tests e2e, audit perf, accessibilité — la couverture de tests unitaires
+frontend existe mais reste concentrée sur `shared/`/`features/auth`, aucune page ni composant de
+présentation n'est testé), et enfin la phase 14 (déploiement).
