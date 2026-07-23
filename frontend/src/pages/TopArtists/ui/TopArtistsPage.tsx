@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getTopArtists } from "@/entities/artist/api/artistApi";
 import { useDateRangeParams } from "@/features/date-range-filter/model/useDateRangeParams";
+import { formatCount } from "@/shared/lib/formatCount";
 import { ErrorState } from "@/shared/ui/ErrorState";
+import { MediaCard } from "@/shared/ui/MediaCard";
 import { Pagination } from "@/shared/ui/Pagination";
 import { Spinner } from "@/shared/ui/Spinner";
 
@@ -32,27 +33,21 @@ export function TopArtistsPage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <h1 className="text-xl">Artistes les plus écoutés</h1>
-      <ol className="flex flex-col divide-y divide-border">
+      <h1 className="text-xl font-semibold">Artistes les plus écoutés</h1>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {data?.items.map((artist, index) => (
-          <li key={artist.id}>
-            <Link
-              to={`/artists/${artist.id}`}
-              className="flex items-center gap-3 px-2 py-2 hover:bg-surface"
-            >
-              <span className="w-8 text-muted-foreground">
-                {(page - 1) * (data.pageSize || 20) + index + 1}
-              </span>
-              <span className="flex-1 truncate text-foreground">
-                {artist.name}
-              </span>
-              <span className="text-muted-foreground">
-                {artist.playCount} écoutes
-              </span>
-            </Link>
-          </li>
+          <MediaCard
+            key={artist.id}
+            variant="grid"
+            shape="circle"
+            href={`/artists/${artist.id}`}
+            coverUrl={artist.coverUrl}
+            title={artist.name}
+            meta={`${formatCount(artist.playCount)} écoutes`}
+            rank={(page - 1) * (data.pageSize || 20) + index + 1}
+          />
         ))}
-      </ol>
+      </div>
       {data && (
         <Pagination
           page={data.page}

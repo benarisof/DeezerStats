@@ -83,3 +83,14 @@ h3 {
   color: var(--text-h);
   font-weight: 600;
 }
+
+/* Masque la scrollbar des carrousels (voir shared/ui/Carousel) sans bloquer le scroll lui-même :
+   les flèches et le geste tactile/trackpad restent le seul affordance visible, comme sur Deezer. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

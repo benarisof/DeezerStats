@@ -2,6 +2,8 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getArtistDetail } from "@/entities/artist/api/artistApi";
 import { useDateRangeParams } from "@/features/date-range-filter/model/useDateRangeParams";
+import { formatCount } from "@/shared/lib/formatCount";
+import { Cover } from "@/shared/ui/Cover";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import { Spinner } from "@/shared/ui/Spinner";
 
@@ -33,13 +35,21 @@ export function ArtistItemPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl text-foreground">{data.name}</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {data.totalPlayCount} écoutes · {data.distinctAlbumsCount} album(s) ·{" "}
-          {data.distinctTracksCount} morceau(x) distinct(s) ·{" "}
-          {data.totalListeningDurationHours.toFixed(1)} h d'écoute cumulée
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="w-32 shrink-0 sm:w-40">
+          <Cover src={data.coverUrl} alt={data.name} shape="circle" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {data.name}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatCount(data.totalPlayCount)} écoutes ·{" "}
+            {data.distinctAlbumsCount} album(s) · {data.distinctTracksCount}{" "}
+            morceau(x) distinct(s) ·{" "}
+            {data.totalListeningDurationHours.toFixed(1)} h d'écoute cumulée
+          </p>
+        </div>
       </div>
 
       <ol className="flex flex-col divide-y divide-border">
@@ -53,7 +63,7 @@ export function ArtistItemPage() {
               </p>
             </div>
             <span className="text-muted-foreground">
-              {track.playCount} écoutes
+              {formatCount(track.playCount)} écoutes
             </span>
           </li>
         ))}

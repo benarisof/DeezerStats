@@ -2,6 +2,8 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { getAlbumDetail } from "@/entities/album/api/albumApi";
 import { useDateRangeParams } from "@/features/date-range-filter/model/useDateRangeParams";
+import { formatCount } from "@/shared/lib/formatCount";
+import { Cover } from "@/shared/ui/Cover";
 import { ErrorState } from "@/shared/ui/ErrorState";
 import { Spinner } from "@/shared/ui/Spinner";
 
@@ -33,14 +35,21 @@ export function AlbumItemPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl text-foreground">{data.title}</h1>
-        <p className="text-muted-foreground">{data.artistName}</p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {data.totalPlayCount} écoutes ·{" "}
-          {data.totalListeningDurationHours.toFixed(1)} h d'écoute cumulée
-          {data.releaseDate && ` · sorti le ${data.releaseDate}`}
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+        <div className="w-32 shrink-0 sm:w-40">
+          <Cover src={data.coverUrl} alt={data.title} shape="square" />
+        </div>
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">
+            {data.title}
+          </h1>
+          <p className="text-muted-foreground">{data.artistName}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {formatCount(data.totalPlayCount)} écoutes ·{" "}
+            {data.totalListeningDurationHours.toFixed(1)} h d'écoute cumulée
+            {data.releaseDate && ` · sorti le ${data.releaseDate}`}
+          </p>
+        </div>
       </div>
 
       <ol className="flex flex-col divide-y divide-border">
@@ -51,7 +60,7 @@ export function AlbumItemPage() {
               {track.title}
             </span>
             <span className="text-muted-foreground">
-              {track.playCount} écoutes
+              {formatCount(track.playCount)} écoutes
             </span>
           </li>
         ))}
