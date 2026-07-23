@@ -33,7 +33,7 @@ namespace DeezerStats.Domain.Aggregates.TrackAggregate
         public Guid AlbumId { get; private set; }
 
         /// <summary>
-        /// Artistes en featuring sur ce morceau, tels qu'importés (ex. "Future" pour une ligne dont
+        /// Obtient artistes en featuring sur ce morceau, tels qu'importés (ex. "Future" pour une ligne dont
         /// la colonne artiste valait "The Weeknd, Future"), stockés en texte libre pour l'affichage
         /// uniquement. Ne participe à aucune règle métier ni à aucun rattachement Artist/Album --
         /// seul le premier nom de la colonne artiste (voir ImportListeningHistoryUseCase) détermine
