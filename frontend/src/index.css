@@ -1,36 +1,23 @@
 @import "tailwindcss";
 
+/* Thème unique, sombre (voir demande : fond noir, texte blanc/mauve, proche des codes visuels
+   Deezer) -- plus de bascule selon prefers-color-scheme, ce théme s'applique dans tous les cas. */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --surface: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --danger: #dc2626;
-  --danger-bg: rgba(220, 38, 38, 0.1);
+  --text: #ab9cc4;
+  --text-h: #f7f4fb;
+  --bg: #0c0a10;
+  --border: #2a2633;
+  --surface: #17141d;
+  --accent: #c084fc;
+  --accent-bg: rgba(192, 132, 252, 0.15);
+  --accent-border: rgba(192, 132, 252, 0.5);
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.15);
 
   --sans: system-ui, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
-  color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --surface: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --danger: #f87171;
-    --danger-bg: rgba(248, 113, 113, 0.15);
-  }
+  color-scheme: dark;
 }
 
 /* Expose les variables ci-dessus comme tokens Tailwind (bg-background, text-foreground,

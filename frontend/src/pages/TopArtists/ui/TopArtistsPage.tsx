@@ -8,6 +8,10 @@ import { MediaCard } from "@/shared/ui/MediaCard";
 import { Pagination } from "@/shared/ui/Pagination";
 import { Spinner } from "@/shared/ui/Spinner";
 
+/** Taille de page augmentée par rapport au défaut backend (20, voir ArtistsController) : des cartes
+ * plus compactes (voir la grille ci-dessous) permettent d'en montrer davantage sans scroller plus. */
+const PAGE_SIZE = 25;
+
 export function TopArtistsPage() {
   const { range } = useDateRangeParams();
   const [page, setPage] = useState(1);
@@ -15,8 +19,8 @@ export function TopArtistsPage() {
   useEffect(() => setPage(1), [range.from, range.to]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["artists", "top", range, page],
-    queryFn: () => getTopArtists({ ...range, page }),
+    queryKey: ["artists", "top", range, page, PAGE_SIZE],
+    queryFn: () => getTopArtists({ ...range, page, pageSize: PAGE_SIZE }),
   });
 
   if (isLoading) {
@@ -34,7 +38,7 @@ export function TopArtistsPage() {
   return (
     <div className="flex flex-col gap-4">
       <h1 className="text-xl font-semibold">Artistes les plus écoutés</h1>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 sm:gap-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
         {data?.items.map((artist, index) => (
           <MediaCard
             key={artist.id}
@@ -44,7 +48,7 @@ export function TopArtistsPage() {
             coverUrl={artist.coverUrl}
             title={artist.name}
             meta={`${formatCount(artist.playCount)} écoutes`}
-            rank={(page - 1) * (data.pageSize || 20) + index + 1}
+            rank={(page - 1) * (data.pageSize || PAGE_SIZE) + index + 1}
           />
         ))}
       </div>

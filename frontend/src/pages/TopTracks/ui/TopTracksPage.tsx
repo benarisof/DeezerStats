@@ -8,6 +8,10 @@ import { MediaCard } from "@/shared/ui/MediaCard";
 import { Pagination } from "@/shared/ui/Pagination";
 import { Spinner } from "@/shared/ui/Spinner";
 
+/** Taille de page augmentée par rapport au défaut backend (20, voir TracksController) — voir aussi
+ * TopAlbumsPage/TopArtistsPage, qui appliquent la même valeur. */
+const PAGE_SIZE = 25;
+
 export function TopTracksPage() {
   const { range } = useDateRangeParams();
   const [page, setPage] = useState(1);
@@ -15,8 +19,8 @@ export function TopTracksPage() {
   useEffect(() => setPage(1), [range.from, range.to]);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ["tracks", "top", range, page],
-    queryFn: () => getTopTracks({ ...range, page }),
+    queryKey: ["tracks", "top", range, page, PAGE_SIZE],
+    queryFn: () => getTopTracks({ ...range, page, pageSize: PAGE_SIZE }),
   });
 
   if (isLoading) {
@@ -44,7 +48,7 @@ export function TopTracksPage() {
             title={track.title}
             subtitle={`${track.artistName} — ${track.albumTitle}`}
             meta={`${formatCount(track.playCount)} écoutes`}
-            rank={(page - 1) * (data.pageSize || 20) + index + 1}
+            rank={(page - 1) * (data.pageSize || PAGE_SIZE) + index + 1}
           />
         ))}
       </div>

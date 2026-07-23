@@ -80,11 +80,12 @@ export function UploadButton() {
       <Button
         type="button"
         variant="secondary"
+        shape="pill"
         disabled={mutation.isPending}
         onClick={() => inputRef.current?.click()}
       >
         {mutation.isPending ? <Spinner /> : null}
-        Importer un historique
+        Importer historique
       </Button>
 
       {(report || error) && (

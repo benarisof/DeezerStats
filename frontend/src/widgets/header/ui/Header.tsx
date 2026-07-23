@@ -48,8 +48,10 @@ export function Header() {
           <UploadButton />
 
           {user && (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-muted-foreground">{user.displayName}</span>
+            <div className="flex shrink-0 items-center gap-2 text-sm">
+              <span className="whitespace-nowrap text-muted-foreground">
+                {user.displayName}
+              </span>
               <Button variant="ghost" onClick={() => void logout()}>
                 Déconnexion
               </Button>
