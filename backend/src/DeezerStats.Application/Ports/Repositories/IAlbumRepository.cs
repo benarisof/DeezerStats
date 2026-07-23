@@ -37,7 +37,11 @@ namespace DeezerStats.Application.Ports.Repositories
         public Task<IReadOnlyList<Album>> GetByArtistIdsAsync(IEnumerable<Guid> artistIds, CancellationToken ct = default);
 
         /// <summary>
-        /// Ajoute un nouvel album dans la base de données.
+        /// Ajoute un nouvel album au suivi du contexte SANS déclencher la persistance : l'appelant
+        /// doit explicitement déclencher
+        /// <see cref="DeezerStats.Application.Ports.IUnitOfWork.SaveChangesAsync"/> pour que cet
+        /// album soit réellement écrit en base (même contrat que <see cref="AddRangeAsync"/>, pour
+        /// ne jamais avoir à deviner si une méthode d'ajout committe ou non).
         /// </summary>
         /// <param name="album">Album à ajouter.</param>
         /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
@@ -58,7 +62,9 @@ namespace DeezerStats.Application.Ports.Repositories
         public Task AddRangeAsync(IEnumerable<Album> albums, CancellationToken ct = default);
 
         /// <summary>
-        /// Met à jour un album existant dans la base de données.
+        /// Met à jour un album existant au suivi du contexte SANS déclencher la persistance : même
+        /// contrat que <see cref="AddAsync"/>, l'appelant doit explicitement déclencher
+        /// <see cref="DeezerStats.Application.Ports.IUnitOfWork.SaveChangesAsync"/>.
         /// </summary>
         /// <param name="album">Album contenant les données modifiées.</param>
         /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>

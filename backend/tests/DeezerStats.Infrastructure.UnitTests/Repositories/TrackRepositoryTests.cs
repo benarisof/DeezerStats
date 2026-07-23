@@ -26,6 +26,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Act
             await repository.AddAsync(track);
+            await context.SaveChangesAsync();
             Track? retrievedTrack = await repository.GetByIsrcAsync(isrc);
 
             // Assert
@@ -48,6 +49,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             await repository.AddAsync(new Track(Guid.NewGuid(), isrcA, "Track A", Guid.NewGuid(), Guid.NewGuid()));
             await repository.AddAsync(new Track(Guid.NewGuid(), isrcB, "Track B", Guid.NewGuid(), Guid.NewGuid()));
             await repository.AddAsync(new Track(Guid.NewGuid(), isrcC, "Track C", Guid.NewGuid(), Guid.NewGuid()));
+            await context.SaveChangesAsync();
 
             // Act : on ne demande que deux des trois ISRC connus.
             IReadOnlyList<Track> retrieved = await repository.GetByIsrcsAsync([isrcA, isrcB]);

@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Artists;
@@ -11,11 +12,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
     {
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
         private readonly IDeezerEnrichmentPort _deezerPort = Substitute.For<IDeezerEnrichmentPort>();
+        private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly GetOrEnrichArtistUseCase _useCase;
 
         public GetOrEnrichArtistUseCaseTests()
         {
-            _useCase = new GetOrEnrichArtistUseCase(_artistRepository, _deezerPort);
+            _useCase = new GetOrEnrichArtistUseCase(_artistRepository, _deezerPort, _unitOfWork);
         }
 
         [Fact]
@@ -39,6 +41,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // Vérification : Deezer ne doit JAMAIS être appelé si la BDD est à jour
             await _deezerPort.DidNotReceiveWithAnyArgs().FetchArtistMetadataAsync(default!, default);
             await _artistRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+            await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
         }
 
         [Fact]
@@ -61,8 +64,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result!.IsEnriched.Should().BeTrue();
             result.CoverUrl.Should().Be("https://deezer.com/artist-cover.jpg");
 
-            // Vérification : la mise à jour en BDD a bien été ordonnée
+            // Vérification : la mise à jour en BDD a bien été ordonnée, et réellement persistée
+            // (UpdateAsync ne fait plus que suivre le changement, voir IArtistRepository.UpdateAsync).
             await _artistRepository.Received(1).UpdateAsync(artist, Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]
@@ -88,6 +93,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // La mise à jour est tout de même appelée (comportement idempotent, cohérent avec
             // GetOrEnrichTrackUseCase/GetOrEnrichAlbumUseCase) : EnrichCover(null) est un no-op.
             await _artistRepository.Received(1).UpdateAsync(artist, Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]

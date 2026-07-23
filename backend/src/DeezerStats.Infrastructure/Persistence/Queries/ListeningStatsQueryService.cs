@@ -15,36 +15,48 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
     /// Album/Artist et les agrégations (COUNT, GROUP BY) nécessaires aux endpoints de consultation
     /// (Phase 9).
     ///
-    /// Deux points d'attention EF Core, tous deux résolus en calculant en mémoire plutôt qu'en SQL :
+    /// Point d'attention EF Core : Duration est un Value Object converti vers un int (secondes) via
+    /// DomainValueConverters. EF Core sait traduire l'accès à la propriété convertie elle-même (ex.
+    /// "le.ListeningDuration") en SQL, mais PAS un accès membre supplémentaire dessus (ex.
+    /// "le.ListeningDuration.TotalSeconds") : ce type d'accès ne peut être traduit en SQL. Les
+    /// sommes de durée (voir BuildTrackListeningStatsAsync) sont donc calculées en mémoire, après
+    /// matérialisation des ListeningDuration bruts -- volumétrie bornée par le nombre de morceaux
+    /// d'un seul album/artiste, donc sans enjeu de performance.
     ///
-    /// 1. Duration est un Value Object converti vers un int (secondes) via DomainValueConverters. EF
-    ///    Core sait traduire l'accès à la propriété convertie elle-même (ex. "le.ListeningDuration")
-    ///    en SQL, mais PAS un accès membre supplémentaire dessus (ex.
-    ///    "le.ListeningDuration.TotalSeconds") : ce type d'accès ne peut être traduit en SQL. Les
-    ///    sommes de durée sont donc systématiquement calculées en mémoire, après matérialisation
-    ///    (ToListAsync) des ListeningDuration bruts.
-    ///
-    /// 2. Un classement (tops albums/artistes/morceaux) nécessite une jointure ListeningEvent ->
-    ///    Track -> Album/Artist SUIVIE d'un GROUP BY + COUNT projeté dans un type applicatif (pas un
-    ///    type anonyme). EF Core échoue systématiquement à traduire cette combinaison précise
-    ///    ("The LINQ expression ... could not be translated"), y compris quand la jointure est faite
-    ///    avant le GroupBy (pas de composition de requête entre méthodes) : c'est une limite du
-    ///    traducteur de requêtes lui-même, pas un problème de style d'écriture. Le classement est
-    ///    donc construit en récupérant les lignes jointes/filtrées via ToListAsync (une seule requête
-    ///    SQL simple, sans agrégation), puis en groupant/comptant/triant en mémoire -- volumétrie
-    ///    largement raisonnable pour l'historique d'écoute d'un seul utilisateur.
+    /// Les classements (tops albums/artistes/morceaux), en revanche, sont désormais groupés/comptés/
+    /// triés/plafonnés côté SQL (GROUP BY + COUNT + ORDER BY + LIMIT), et non plus en mémoire.
+    /// L'échec de traduction initialement rencontré ("The LINQ expression ... could not be
+    /// translated") ne venait pas du GROUP BY lui-même, mais de la projection finale vers un type
+    /// applicatif nommé (ex. "new AlbumSummary(...)") : EF Core sait traduire un GROUP BY projeté
+    /// vers un type ANONYME (voir Build*SummariesAsync ci-dessous), le mapping vers le record nommé
+    /// se faisant ensuite en mémoire sur un résultat déjà réduit au strict nécessaire (Take). Vérifié
+    /// contre la vraie base (pas seulement le provider EF Core InMemory, qui ne reproduit pas cette
+    /// limite de traduction) avant ce changement.
     /// </summary>
     public class ListeningStatsQueryService(ApplicationDbContext context) : IListeningStatsQueryPort
     {
+        /// <summary>
+        /// Nombre d'éléments par catégorie affichés sur la page d'accueil (voir HomeStatsResponse) :
+        /// volontairement demandé au plus près du besoin (10) plutôt que le plafond général des tops
+        /// (StatsRules.MaxRankedResults, 100), pour que la requête SQL sous-jacente (GROUP BY + LIMIT)
+        /// n'agrège que ce qui sera effectivement affiché.
+        /// </summary>
+        private const int _homeStatsItemCount = 10;
+
         private readonly ApplicationDbContext _context = context;
 
         public async Task<HomeStatsResponse> GetHomeStatsAsync(Guid userId, DateRange dateRange, CancellationToken ct = default)
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
 
-            List<AlbumSummary> topAlbums = [.. (await BuildAlbumSummariesAsync(userId, fromDate, toDate, ct)).Take(10)];
-            List<ArtistSummary> topArtists = [.. (await BuildArtistSummariesAsync(userId, fromDate, toDate, ct)).Take(10)];
-            List<TrackSummary> topTracks = [.. (await BuildTrackSummariesAsync(userId, fromDate, toDate, ct)).Take(10)];
+            // Une seule requête SQL par catégorie (contre une matérialisation complète de l'historique
+            // de l'utilisateur x3 auparavant) : chacune reste néanmoins séquentielle, le DbContext
+            // n'étant pas thread-safe pour des requêtes concurrentes sur la même instance (voir
+            // CatalogEnrichmentCoordinator pour le pattern utilisé quand une vraie parallélisation est
+            // nécessaire, avec un DbContext isolé par tâche).
+            List<AlbumSummary> topAlbums = await BuildAlbumSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
+            List<ArtistSummary> topArtists = await BuildArtistSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
+            List<TrackSummary> topTracks = await BuildTrackSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
 
             return new HomeStatsResponse(topAlbums, topArtists, topTracks);
         }
@@ -52,21 +64,21 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
         public async Task<PagedResult<AlbumSummary>> GetTopAlbumsAsync(Guid userId, DateRange dateRange, int page, int pageSize, CancellationToken ct = default)
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
-            List<AlbumSummary> summaries = await BuildAlbumSummariesAsync(userId, fromDate, toDate, ct);
+            List<AlbumSummary> summaries = await BuildAlbumSummariesAsync(userId, fromDate, toDate, StatsRules.MaxRankedResults, ct);
             return ToPagedResult(summaries, page, pageSize);
         }
 
         public async Task<PagedResult<ArtistSummary>> GetTopArtistsAsync(Guid userId, DateRange dateRange, int page, int pageSize, CancellationToken ct = default)
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
-            List<ArtistSummary> summaries = await BuildArtistSummariesAsync(userId, fromDate, toDate, ct);
+            List<ArtistSummary> summaries = await BuildArtistSummariesAsync(userId, fromDate, toDate, StatsRules.MaxRankedResults, ct);
             return ToPagedResult(summaries, page, pageSize);
         }
 
         public async Task<PagedResult<TrackSummary>> GetTopTracksAsync(Guid userId, DateRange dateRange, int page, int pageSize, CancellationToken ct = default)
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
-            List<TrackSummary> summaries = await BuildTrackSummariesAsync(userId, fromDate, toDate, ct);
+            List<TrackSummary> summaries = await BuildTrackSummariesAsync(userId, fromDate, toDate, StatsRules.MaxRankedResults, ct);
             return ToPagedResult(summaries, page, pageSize);
         }
 
@@ -220,8 +232,10 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
 
         /// <summary>
         /// Plafonne un classement déjà trié (voir StatsRules.MaxRankedResults) puis en extrait la
-        /// page demandée. Purement en mémoire : les listes en entrée proviennent des méthodes
-        /// Build*SummariesAsync, déjà matérialisées côté base via une seule requête SQL simple.
+        /// page demandée. Purement en mémoire, mais sur un résultat déjà plafonné côté SQL par les
+        /// méthodes Build*SummariesAsync (le ".Take(StatsRules.MaxRankedResults)" ci-dessous ne fait
+        /// donc jamais rien en pratique) : conservé comme garde-fou défensif plutôt que retiré, au cas
+        /// où un appelant futur oublierait de plafonner sa requête en amont.
         /// </summary>
         private static PagedResult<T> ToPagedResult<T>(IReadOnlyList<T> orderedItems, int page, int pageSize)
         {
@@ -235,11 +249,11 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
 
         /// <summary>
         /// Construit le classement des morceaux (avec nombre d'écoutes) pour un utilisateur donné,
-        /// trié par nombre d'écoutes décroissant. Voir la remarque en tête de fichier sur le GROUP BY
-        /// non traduisible par EF Core dans ce contexte : la jointure et le filtrage sont faits en
-        /// SQL (une requête simple, sans agrégation), le regroupement/comptage/tri en mémoire.
+        /// trié par nombre d'écoutes décroissant et plafonné à <paramref name="take"/> résultats --
+        /// jointure, regroupement, comptage, tri ET plafonnage sont tous traduits en SQL (voir la
+        /// remarque en tête de fichier), Postgres ne renvoyant jamais plus de lignes que nécessaire.
         /// </summary>
-        private async Task<List<TrackSummary>> BuildTrackSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, CancellationToken ct)
+        private async Task<List<TrackSummary>> BuildTrackSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
                 from le in _context.ListeningEvents
@@ -249,20 +263,29 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
                 join t in _context.Tracks on le.TrackId equals t.Id
                 join al in _context.Albums on t.AlbumId equals al.Id
                 join ar in _context.Artists on t.ArtistId equals ar.Id
-                select new { TrackId = t.Id, t.Title, ArtistName = ar.Name, AlbumTitle = al.Title, t.CoverUrl })
+                group le by new { t.Id, t.Title, ArtistName = ar.Name, AlbumTitle = al.Title, t.CoverUrl } into g
+                select new
+                {
+                    g.Key.Id,
+                    g.Key.Title,
+                    g.Key.ArtistName,
+                    g.Key.AlbumTitle,
+                    g.Key.CoverUrl,
+                    PlayCount = g.Count(),
+                })
+                .OrderByDescending(x => x.PlayCount)
+                .Take(take)
                 .ToListAsync(ct);
 
-            return [.. rows
-                .GroupBy(x => x.TrackId)
-                .Select(g => new TrackSummary(g.Key, g.First().Title, g.First().ArtistName, g.First().AlbumTitle, g.First().CoverUrl, g.Count()))
-                .OrderByDescending(s => s.PlayCount)];
+            return [.. rows.Select(r => new TrackSummary(r.Id, r.Title, r.ArtistName, r.AlbumTitle, r.CoverUrl, r.PlayCount))];
         }
 
         /// <summary>
         /// Construit le classement des albums (avec nombre d'écoutes cumulé sur tous leurs morceaux)
-        /// pour un utilisateur donné. Voir la remarque de <see cref="BuildTrackSummariesAsync"/>.
+        /// pour un utilisateur donné, plafonné à <paramref name="take"/> résultats. Voir la remarque
+        /// de <see cref="BuildTrackSummariesAsync"/>.
         /// </summary>
-        private async Task<List<AlbumSummary>> BuildAlbumSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, CancellationToken ct)
+        private async Task<List<AlbumSummary>> BuildAlbumSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
                 from le in _context.ListeningEvents
@@ -272,21 +295,28 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
                 join t in _context.Tracks on le.TrackId equals t.Id
                 join al in _context.Albums on t.AlbumId equals al.Id
                 join ar in _context.Artists on al.ArtistId equals ar.Id
-                select new { AlbumId = al.Id, al.Title, ArtistName = ar.Name, al.CoverUrl })
+                group le by new { al.Id, al.Title, ArtistName = ar.Name, al.CoverUrl } into g
+                select new
+                {
+                    g.Key.Id,
+                    g.Key.Title,
+                    g.Key.ArtistName,
+                    g.Key.CoverUrl,
+                    PlayCount = g.Count(),
+                })
+                .OrderByDescending(x => x.PlayCount)
+                .Take(take)
                 .ToListAsync(ct);
 
-            return [.. rows
-                .GroupBy(x => x.AlbumId)
-                .Select(g => new AlbumSummary(g.Key, g.First().Title, g.First().ArtistName, g.First().CoverUrl, g.Count()))
-                .OrderByDescending(s => s.PlayCount)];
+            return [.. rows.Select(r => new AlbumSummary(r.Id, r.Title, r.ArtistName, r.CoverUrl, r.PlayCount))];
         }
 
         /// <summary>
         /// Construit le classement des artistes (avec nombre d'écoutes cumulé sur tous leurs
-        /// morceaux, tous albums confondus) pour un utilisateur donné. Voir la remarque de
-        /// <see cref="BuildTrackSummariesAsync"/>.
+        /// morceaux, tous albums confondus) pour un utilisateur donné, plafonné à
+        /// <paramref name="take"/> résultats. Voir la remarque de <see cref="BuildTrackSummariesAsync"/>.
         /// </summary>
-        private async Task<List<ArtistSummary>> BuildArtistSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, CancellationToken ct)
+        private async Task<List<ArtistSummary>> BuildArtistSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
                 from le in _context.ListeningEvents
@@ -295,13 +325,19 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
                     && (toDate == null || le.ListenedAt <= toDate)
                 join t in _context.Tracks on le.TrackId equals t.Id
                 join ar in _context.Artists on t.ArtistId equals ar.Id
-                select new { ArtistId = ar.Id, ar.Name, ar.CoverUrl })
+                group le by new { ar.Id, ar.Name, ar.CoverUrl } into g
+                select new
+                {
+                    g.Key.Id,
+                    g.Key.Name,
+                    g.Key.CoverUrl,
+                    PlayCount = g.Count(),
+                })
+                .OrderByDescending(x => x.PlayCount)
+                .Take(take)
                 .ToListAsync(ct);
 
-            return [.. rows
-                .GroupBy(x => x.ArtistId)
-                .Select(g => new ArtistSummary(g.Key, g.First().Name, g.First().CoverUrl, g.Count()))
-                .OrderByDescending(s => s.PlayCount)];
+            return [.. rows.Select(r => new ArtistSummary(r.Id, r.Name, r.CoverUrl, r.PlayCount))];
         }
 
         /// <summary>

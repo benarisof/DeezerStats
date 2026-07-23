@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Albums;
@@ -14,11 +15,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly IAlbumRepository _albumRepository = Substitute.For<IAlbumRepository>();
         private readonly IArtistRepository _artistRepository = Substitute.For<IArtistRepository>();
         private readonly IDeezerEnrichmentPort _deezerPort = Substitute.For<IDeezerEnrichmentPort>();
+        private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly GetOrEnrichAlbumUseCase _useCase;
 
         public GetOrEnrichAlbumUseCaseTests()
         {
-            _useCase = new GetOrEnrichAlbumUseCase(_albumRepository, _artistRepository, _deezerPort);
+            _useCase = new GetOrEnrichAlbumUseCase(_albumRepository, _artistRepository, _deezerPort, _unitOfWork);
         }
 
         [Fact]
@@ -42,6 +44,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             // Vérification : Deezer ne doit JAMAIS être appelé si la BDD est à jour
             await _deezerPort.DidNotReceiveWithAnyArgs().FetchAlbumMetadataAsync(default!, default!, default);
             await _albumRepository.DidNotReceiveWithAnyArgs().UpdateAsync(default!, default);
+            await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
         }
 
         [Fact]
@@ -68,8 +71,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.ReleaseDate.Should().Be(new DateOnly(2001, 3, 12));
             result.Duration!.TotalSeconds.Should().Be(3600);
 
-            // Vérification : la mise à jour en BDD a bien été ordonnée
+            // Vérification : la mise à jour en BDD a bien été ordonnée, et réellement persistée
+            // (UpdateAsync ne fait plus que suivre le changement, voir IAlbumRepository.UpdateAsync).
             await _albumRepository.Received(1).UpdateAsync(album, Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]

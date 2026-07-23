@@ -1,6 +1,7 @@
 using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Domain.Aggregates.UserAggregate;
@@ -13,11 +14,13 @@ namespace DeezerStats.Application.UseCases.Users
         IUserRepository userRepository,
         IPasswordHasher passwordHasher,
         IAuthTokenIssuer authTokenIssuer,
+        IUnitOfWork unitOfWork,
         IValidator<AuthenticateUserCommand> validator) : IAuthenticateUserUseCase
     {
         private readonly IUserRepository _userRepository = userRepository;
         private readonly IPasswordHasher _passwordHasher = passwordHasher;
         private readonly IAuthTokenIssuer _authTokenIssuer = authTokenIssuer;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
         private readonly IValidator<AuthenticateUserCommand> _validator = validator;
 
@@ -41,7 +44,13 @@ namespace DeezerStats.Application.UseCases.Users
                     "Email ou mot de passe invalide.");
             }
 
-            return await _authTokenIssuer.IssueAsync(user, ct);
+            AuthTokensDto tokens = await _authTokenIssuer.IssueAsync(user, ct);
+
+            // AuthTokenIssuer ne committe pas lui-même (voir AuthTokenIssuer) : c'est ce seul appel
+            // qui persiste réellement le nouveau refresh token.
+            await _unitOfWork.SaveChangesAsync(ct);
+
+            return tokens;
         }
     }
 }

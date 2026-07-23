@@ -2,6 +2,7 @@ using System.Text;
 using DeezerStats.Api.Middleware;
 using DeezerStats.Application;
 using DeezerStats.Infrastructure;
+using DeezerStats.Infrastructure.Adapters.Search;
 using DeezerStats.Infrastructure.Adapters.Security;
 using DeezerStats.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -83,16 +84,28 @@ using (IServiceScope migrationScope = app.Services.CreateScope())
     }
 }
 
+// Aucun secret de appsettings.json (valeurs de développement volontairement publiques dans le
+// dépôt) ne doit se retrouver actif en dehors de Development : voir JwtSettings.DevelopmentPlaceholderKey
+// et MeilisearchOptions.DevelopmentPlaceholderMasterKey. Un déploiement en production qui omettrait
+// de positionner la variable d'environnement correspondante doit échouer bruyamment au démarrage
+// plutôt que de tourner silencieusement avec un secret trivial et public.
 if (!app.Environment.IsDevelopment())
 {
     JwtSettings jwtSettings = app.Services.GetRequiredService<IOptions<JwtSettings>>().Value;
+    EnsureNotDevelopmentPlaceholder("Jwt:Key", jwtSettings.Key, JwtSettings.DevelopmentPlaceholderKey, "JWT_SECRET");
 
-    if (jwtSettings.Key == JwtSettings.DevelopmentPlaceholderKey)
+    MeilisearchOptions meilisearchOptions = app.Services.GetRequiredService<IOptions<MeilisearchOptions>>().Value;
+    EnsureNotDevelopmentPlaceholder("Meilisearch:MasterKey", meilisearchOptions.MasterKey, MeilisearchOptions.DevelopmentPlaceholderMasterKey, "MEILI_MASTER_KEY");
+}
+
+static void EnsureNotDevelopmentPlaceholder(string settingName, string actualValue, string placeholderValue, string environmentVariableName)
+{
+    if (actualValue == placeholderValue)
     {
         throw new InvalidOperationException(
-            "Jwt:Key utilise encore la valeur de développement par défaut (voir appsettings.json). " +
-            "Positionnez la variable d'environnement JWT_SECRET (voir docker-compose.yml) avant de " +
-            "démarrer en dehors de Development.");
+            $"{settingName} utilise encore la valeur de développement par défaut (voir appsettings.json). " +
+            $"Positionnez la variable d'environnement {environmentVariableName} (voir docker-compose.yml) " +
+            "avant de démarrer en dehors de Development.");
     }
 }
 

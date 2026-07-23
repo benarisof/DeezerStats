@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.TrackAggregate;
@@ -6,10 +7,12 @@ namespace DeezerStats.Application.UseCases.Tracks
 {
     public class GetOrEnrichTrackUseCase(
         ITrackRepository trackRepository,
-        IDeezerEnrichmentPort deezerPort) : IGetOrEnrichTrackUseCase
+        IDeezerEnrichmentPort deezerPort,
+        IUnitOfWork unitOfWork) : IGetOrEnrichTrackUseCase
     {
         private readonly ITrackRepository _trackRepository = trackRepository;
         private readonly IDeezerEnrichmentPort _deezerPort = deezerPort;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
         public async Task<Track?> ExecuteAsync(GetOrEnrichTrackRequest request, CancellationToken ct = default)
         {
@@ -42,8 +45,11 @@ namespace DeezerStats.Application.UseCases.Tracks
                 // Mutation de l'agrégat dans le domaine
                 track.Enrich(deezerMetadata.Duration, deezerMetadata.CoverUrl);
 
-                // Persistence des métadonnées dans PostgreSQL
+                // Persistence des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
+                // changement, voir ITrackRepository.UpdateAsync -- SaveChangesAsync déclenche
+                // l'écriture réelle).
                 await _trackRepository.UpdateAsync(track, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
             }
 
             return track;

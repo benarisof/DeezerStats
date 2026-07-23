@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.ArtistAggregate;
@@ -12,10 +13,12 @@ namespace DeezerStats.Application.UseCases.Artists
     /// </summary>
     public class GetOrEnrichArtistUseCase(
         IArtistRepository artistRepository,
-        IDeezerEnrichmentPort deezerPort) : IGetOrEnrichArtistUseCase
+        IDeezerEnrichmentPort deezerPort,
+        IUnitOfWork unitOfWork) : IGetOrEnrichArtistUseCase
     {
         private readonly IArtistRepository _artistRepository = artistRepository;
         private readonly IDeezerEnrichmentPort _deezerPort = deezerPort;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
 
         public async Task<Artist?> ExecuteAsync(GetOrEnrichArtistRequest request, CancellationToken ct = default)
         {
@@ -41,8 +44,11 @@ namespace DeezerStats.Application.UseCases.Artists
                 // 4. Mutation de l'agrégat dans le domaine
                 artist.EnrichCover(deezerMetadata.CoverUrl);
 
-                // 5. Persistance des métadonnées dans PostgreSQL
+                // 5. Persistance des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
+                // changement, voir IArtistRepository.UpdateAsync -- SaveChangesAsync déclenche
+                // l'écriture réelle).
                 await _artistRepository.UpdateAsync(artist, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
             }
 
             return artist;

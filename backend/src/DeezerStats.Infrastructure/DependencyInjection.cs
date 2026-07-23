@@ -81,8 +81,13 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
             services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
 
-            // Enregistrement des Options
-            services.Configure<MeilisearchOptions>(configuration.GetSection(MeilisearchOptions.SectionName));
+            // Configuration de MeilisearchOptions (même pattern que JwtSettings ci-dessus : un
+            // IValidateOptions dédié + ValidateOnStart(), pour échouer bruyamment au démarrage
+            // plutôt que de laisser l'API tourner avec une configuration de recherche invalide).
+            services.AddSingleton<IValidateOptions<MeilisearchOptions>, MeilisearchOptionsValidator>();
+            services.AddOptions<MeilisearchOptions>()
+                .Bind(configuration.GetSection(MeilisearchOptions.SectionName))
+                .ValidateOnStart();
 
             // Enregistrement du Client Meilisearch en Singleton
             services.AddSingleton(sp =>

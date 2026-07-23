@@ -35,7 +35,11 @@ namespace DeezerStats.Application.Ports.Repositories
         public Task<IReadOnlyList<Track>> GetByIsrcsAsync(IEnumerable<Isrc> isrcs, CancellationToken ct = default);
 
         /// <summary>
-        /// Ajoute un nouveau morceau dans la base de données (persiste immédiatement).
+        /// Ajoute un nouveau morceau au suivi du contexte SANS déclencher la persistance :
+        /// l'appelant doit explicitement déclencher
+        /// <see cref="DeezerStats.Application.Ports.IUnitOfWork.SaveChangesAsync"/> pour que ce
+        /// morceau soit réellement écrit en base (même contrat que <see cref="AddRangeAsync"/>,
+        /// pour ne jamais avoir à deviner si une méthode d'ajout committe ou non).
         /// </summary>
         /// <param name="track">Morceau à ajouter.</param>
         /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
@@ -56,7 +60,9 @@ namespace DeezerStats.Application.Ports.Repositories
         public Task AddRangeAsync(IEnumerable<Track> tracks, CancellationToken ct = default);
 
         /// <summary>
-        /// Met à jour un morceau existant dans la base de données.
+        /// Met à jour un morceau existant au suivi du contexte SANS déclencher la persistance :
+        /// même contrat que <see cref="AddAsync"/>, l'appelant doit explicitement déclencher
+        /// <see cref="DeezerStats.Application.Ports.IUnitOfWork.SaveChangesAsync"/>.
         /// </summary>
         /// <param name="track">Morceau contenant les données modifiées.</param>
         /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>

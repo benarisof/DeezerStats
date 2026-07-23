@@ -20,6 +20,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Act
             await repository.AddAsync(album);
+            await context.SaveChangesAsync();
             Album? retrieved = await repository.GetByIdAsync(albumId);
 
             // Assert
@@ -36,6 +37,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new AlbumRepository(context);
             var album = new Album(Guid.NewGuid(), "Discovery", Guid.NewGuid());
             await repository.AddAsync(album);
+            await context.SaveChangesAsync();
 
             // Act
             album.Enrich(
@@ -43,6 +45,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
                 releaseDate: new DateOnly(2001, 3, 12),
                 duration: new Duration(3650));
             await repository.UpdateAsync(album);
+            await context.SaveChangesAsync();
 
             Album? updatedAlbum = await repository.GetByIdAsync(album.Id);
 
@@ -62,6 +65,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var artistId = Guid.NewGuid();
             var album = new Album(Guid.NewGuid(), "Discovery", artistId);
             await repository.AddAsync(album);
+            await context.SaveChangesAsync();
 
             // Act
             Album? retrieved = await repository.GetByTitleAndArtistAsync("  discovery ", artistId);
@@ -78,6 +82,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             using ApplicationDbContext context = CreateInMemoryDbContext();
             var repository = new AlbumRepository(context);
             await repository.AddAsync(new Album(Guid.NewGuid(), "Discovery", Guid.NewGuid()));
+            await context.SaveChangesAsync();
 
             // Act
             Album? retrieved = await repository.GetByTitleAndArtistAsync("Discovery", Guid.NewGuid());
@@ -116,6 +121,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             await repository.AddAsync(albumA);
             await repository.AddAsync(albumB);
             await repository.AddAsync(new Album(Guid.NewGuid(), "After Hours", otherArtistId));
+            await context.SaveChangesAsync();
 
             // Act
             IReadOnlyList<Album> retrieved = await repository.GetByArtistIdsAsync([artistId]);

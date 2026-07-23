@@ -1,4 +1,3 @@
-using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Domain.Aggregates.UserAggregate;
 using DeezerStats.Domain.ValueObjects;
 using DeezerStats.Infrastructure.Persistence;
@@ -25,6 +24,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Act
             await repository.AddAsync(user);
+            await context.SaveChangesAsync();
             User? retrieved = await repository.GetByIdAsync(userId);
 
             // Assert
@@ -41,6 +41,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new UserRepository(context);
             var user = new User(Guid.NewGuid(), new Email("alex@example.com"), "hashed_password_123", "Alex");
             await repository.AddAsync(user);
+            await context.SaveChangesAsync();
 
             // Act : On cherche avec des majuscules et des espaces autour
             User? retrieved = await repository.GetByEmailAsync(new Email("alex@example.com"));
@@ -65,17 +66,17 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
         }
 
         [Fact]
-        public async Task AddAsyncWithDuplicateEmailShouldThrowConflictException()
+        public async Task AddAsyncWithDuplicateEmailShouldThrow()
         {
             // Arrange : Email est configuré comme clé alternative (voir UserConfiguration), le filet
             // de sécurité en base contre les doublons de compte même si le contrôle applicatif de
             // RegisterUserUseCase (GetByEmailAsync) est contourné par une course concurrente. Ici, les
             // deux entités étant suivies par le même DbContext, EF Core détecte le conflit dès l'ajout
-            // (identity map du ChangeTracker), avant même SaveChanges : une InvalidOperationException,
-            // que UserRepository.AddAsync traduit en ConflictException pour préserver le contrat 409
-            // de l'API. Dans un scénario réel de deux requêtes HTTP concurrentes utilisant chacune
-            // leur propre DbContext, c'est la contrainte d'unicité en base qui interviendrait, avec
-            // une DbUpdateException — traduite de la même façon.
+            // (identity map du ChangeTracker), avant même SaveChanges : une InvalidOperationException.
+            // AddAsync ne la traduit plus en ConflictException elle-même (voir UserRepository) : c'est
+            // désormais RegisterUserUseCase, au moment de son propre SaveChangesAsync, qui retraduit un
+            // DbUpdateException (le cas réel avec deux DbContext concurrents et une contrainte
+            // d'unicité en base) en ConflictException.
             using ApplicationDbContext context = CreateInMemoryDbContext();
             var repository = new UserRepository(context);
             await repository.AddAsync(new User(Guid.NewGuid(), new Email("alex@example.com"), "hash1", "Alex"));
@@ -85,7 +86,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
                 new User(Guid.NewGuid(), new Email("alex@example.com"), "hash2", "Alex Bis"));
 
             // Assert
-            await act.Should().ThrowAsync<ConflictException>();
+            await act.Should().ThrowAsync<InvalidOperationException>();
         }
 
         private static ApplicationDbContext CreateInMemoryDbContext()

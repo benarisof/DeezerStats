@@ -1,6 +1,7 @@
 using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
@@ -16,6 +17,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly Mock<IUserRepository> _userRepositoryMock;
         private readonly Mock<IPasswordHasher> _passwordHasherMock;
         private readonly Mock<IAuthTokenIssuer> _authTokenIssuerMock;
+        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
 
         private readonly AuthenticateUserUseCase _useCase;
 
@@ -24,11 +26,13 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _userRepositoryMock = new Mock<IUserRepository>();
             _passwordHasherMock = new Mock<IPasswordHasher>();
             _authTokenIssuerMock = new Mock<IAuthTokenIssuer>();
+            _unitOfWorkMock = new Mock<IUnitOfWork>();
 
             _useCase = new AuthenticateUserUseCase(
                 _userRepositoryMock.Object,
                 _passwordHasherMock.Object,
                 _authTokenIssuerMock.Object,
+                _unitOfWorkMock.Object,
                 new AuthenticateUserCommandValidator());
         }
 
@@ -79,6 +83,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _authTokenIssuerMock.Verify(
                 x => x.IssueAsync(user, It.IsAny<CancellationToken>()),
                 Times.Once);
+
+            // AuthTokenIssuer ne committe plus lui-même (voir AuthTokenIssuer) : c'est au use case
+            // de déclencher explicitement la persistance du nouveau refresh token.
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [Fact]
@@ -112,6 +122,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 x => x.IssueAsync(
                     It.IsAny<User>(),
                     It.IsAny<CancellationToken>()),
+                Times.Never);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -152,6 +166,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 x => x.IssueAsync(
                     It.IsAny<User>(),
                     It.IsAny<CancellationToken>()),
+                Times.Never);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 

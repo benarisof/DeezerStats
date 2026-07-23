@@ -11,16 +11,12 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
         public async Task<RefreshToken?> GetByTokenHashAsync(string tokenHash, CancellationToken ct = default)
             => await _context.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == tokenHash, ct);
 
-        public async Task AddAsync(RefreshToken refreshToken, CancellationToken ct = default)
-        {
-            await _context.RefreshTokens.AddAsync(refreshToken, ct);
-            await _context.SaveChangesAsync(ct);
-        }
+        public async Task AddAsync(RefreshToken refreshToken, CancellationToken ct = default) => await _context.RefreshTokens.AddAsync(refreshToken, ct);
 
-        public async Task UpdateAsync(RefreshToken refreshToken, CancellationToken ct = default)
+        public Task UpdateAsync(RefreshToken refreshToken, CancellationToken ct = default)
         {
             _context.RefreshTokens.Update(refreshToken);
-            await _context.SaveChangesAsync(ct);
+            return Task.CompletedTask;
         }
 
         public async Task RevokeAllActiveForUserAsync(Guid userId, CancellationToken ct = default)
@@ -33,8 +29,6 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
             {
                 token.Revoke();
             }
-
-            await _context.SaveChangesAsync(ct);
         }
     }
 }

@@ -1,6 +1,7 @@
 using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Domain.Aggregates.UserAggregate;
@@ -20,12 +21,14 @@ namespace DeezerStats.Application.UseCases.Users
         IRefreshTokenGenerator refreshTokenGenerator,
         IUserRepository userRepository,
         IAuthTokenIssuer authTokenIssuer,
+        IUnitOfWork unitOfWork,
         IValidator<RefreshAccessTokenCommand> validator) : IRefreshAccessTokenUseCase
     {
         private readonly IRefreshTokenRepository _refreshTokenRepository = refreshTokenRepository;
         private readonly IRefreshTokenGenerator _refreshTokenGenerator = refreshTokenGenerator;
         private readonly IUserRepository _userRepository = userRepository;
         private readonly IAuthTokenIssuer _authTokenIssuer = authTokenIssuer;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
         private readonly IValidator<RefreshAccessTokenCommand> _validator = validator;
 
         public async Task<AuthTokensDto> ExecuteAsync(
@@ -46,8 +49,11 @@ namespace DeezerStats.Application.UseCases.Users
             if (existingToken.IsRevoked)
             {
                 // Réutilisation d'un token déjà révoqué : réponse défensive, on invalide toute la
-                // session de l'utilisateur plutôt que ce seul token.
+                // session de l'utilisateur plutôt que ce seul token. RevokeAllActiveForUserAsync ne
+                // committe plus elle-même (voir IRefreshTokenRepository) : on committe explicitement
+                // avant de lever l'exception, pour que la révocation survive malgré tout.
                 await _refreshTokenRepository.RevokeAllActiveForUserAsync(existingToken.UserId, ct);
+                await _unitOfWork.SaveChangesAsync(ct);
                 throw new AuthenticationFailedException("Refresh token invalide ou expiré.");
             }
 
@@ -63,6 +69,12 @@ namespace DeezerStats.Application.UseCases.Users
 
             existingToken.Revoke();
             await _refreshTokenRepository.UpdateAsync(existingToken, ct);
+
+            // La révocation de l'ancien token et l'émission du nouveau sont désormais persistées
+            // ensemble par un seul SaveChangesAsync (AuthTokenIssuer/UpdateAsync ne committent plus
+            // individuellement, voir leurs commentaires respectifs) : la rotation est donc atomique,
+            // sans nécessiter de transaction explicite.
+            await _unitOfWork.SaveChangesAsync(ct);
 
             return newTokens;
         }

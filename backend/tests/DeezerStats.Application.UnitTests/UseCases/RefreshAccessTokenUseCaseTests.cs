@@ -1,6 +1,7 @@
 using DeezerStats.Application.Common;
 using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.DTOs;
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
@@ -17,6 +18,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         private readonly Mock<IRefreshTokenGenerator> _refreshTokenGeneratorMock;
         private readonly Mock<IUserRepository> _userRepositoryMock;
         private readonly Mock<IAuthTokenIssuer> _authTokenIssuerMock;
+        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
 
         private readonly RefreshAccessTokenUseCase _useCase;
 
@@ -26,6 +28,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _refreshTokenGeneratorMock = new Mock<IRefreshTokenGenerator>();
             _userRepositoryMock = new Mock<IUserRepository>();
             _authTokenIssuerMock = new Mock<IAuthTokenIssuer>();
+            _unitOfWorkMock = new Mock<IUnitOfWork>();
 
             _refreshTokenGeneratorMock
                 .Setup(x => x.Hash(It.IsAny<string>()))
@@ -36,6 +39,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
                 _refreshTokenGeneratorMock.Object,
                 _userRepositoryMock.Object,
                 _authTokenIssuerMock.Object,
+                _unitOfWorkMock.Object,
                 new RefreshAccessTokenCommandValidator());
         }
 
@@ -81,6 +85,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _refreshTokenRepositoryMock.Verify(
                 x => x.RevokeAllActiveForUserAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()),
                 Times.Never);
+
+            // La révocation de l'ancien token et l'émission du nouveau sont persistées ensemble par
+            // un seul SaveChangesAsync (voir RefreshAccessTokenUseCase) : la rotation est atomique.
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [Fact]
@@ -98,6 +108,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             // Assert
             await Assert.ThrowsAsync<AuthenticationFailedException>(Action);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Never);
         }
 
         [Fact]
@@ -124,6 +138,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             _authTokenIssuerMock.Verify(
                 x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -153,6 +171,13 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             _refreshTokenRepositoryMock.Verify(
                 x => x.RevokeAllActiveForUserAsync(userId, It.IsAny<CancellationToken>()),
+                Times.Once);
+
+            // RevokeAllActiveForUserAsync ne committe plus elle-même (voir IRefreshTokenRepository) :
+            // le use case doit committer explicitement avant de lever l'exception, pour que la
+            // révocation défensive survive malgré tout.
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Once);
         }
 

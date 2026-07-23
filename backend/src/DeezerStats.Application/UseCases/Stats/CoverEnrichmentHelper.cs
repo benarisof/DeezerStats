@@ -17,7 +17,7 @@ namespace DeezerStats.Application.UseCases.Stats
             ICatalogEnrichmentCoordinator coordinator,
             CancellationToken ct)
         {
-            List<Guid> ids = items.Where(a => a.CoverUrl is null).Select(a => a.Id).ToList();
+            List<Guid> ids = [.. items.Where(a => a.CoverUrl is null).Select(a => a.Id)];
 
             if (ids.Count == 0)
             {
@@ -28,7 +28,7 @@ namespace DeezerStats.Application.UseCases.Stats
 
             return freshCovers.Count == 0
                 ? items
-                : items.Select(a => freshCovers.TryGetValue(a.Id, out var cover) ? a with { CoverUrl = cover } : a).ToList();
+                : [.. items.Select(a => freshCovers.TryGetValue(a.Id, out var cover) ? a with { CoverUrl = cover } : a)];
         }
 
         public static async Task<IReadOnlyList<ArtistSummary>> EnrichCoversAsync(
@@ -36,7 +36,7 @@ namespace DeezerStats.Application.UseCases.Stats
             ICatalogEnrichmentCoordinator coordinator,
             CancellationToken ct)
         {
-            List<Guid> ids = items.Where(a => a.CoverUrl is null).Select(a => a.Id).ToList();
+            List<Guid> ids = [.. items.Where(a => a.CoverUrl is null).Select(a => a.Id)];
 
             if (ids.Count == 0)
             {
@@ -47,7 +47,7 @@ namespace DeezerStats.Application.UseCases.Stats
 
             return freshCovers.Count == 0
                 ? items
-                : items.Select(a => freshCovers.TryGetValue(a.Id, out var cover) ? a with { CoverUrl = cover } : a).ToList();
+                : [.. items.Select(a => freshCovers.TryGetValue(a.Id, out var cover) ? a with { CoverUrl = cover } : a)];
         }
 
         public static async Task<IReadOnlyList<TrackSummary>> EnrichCoversAsync(
@@ -55,7 +55,7 @@ namespace DeezerStats.Application.UseCases.Stats
             ICatalogEnrichmentCoordinator coordinator,
             CancellationToken ct)
         {
-            List<Guid> ids = items.Where(t => t.CoverUrl is null).Select(t => t.Id).ToList();
+            List<Guid> ids = [.. items.Where(t => t.CoverUrl is null).Select(t => t.Id)];
 
             if (ids.Count == 0)
             {
@@ -66,7 +66,7 @@ namespace DeezerStats.Application.UseCases.Stats
 
             return freshCovers.Count == 0
                 ? items
-                : items.Select(t => freshCovers.TryGetValue(t.Id, out var cover) ? t with { CoverUrl = cover } : t).ToList();
+                : [.. items.Select(t => freshCovers.TryGetValue(t.Id, out var cover) ? t with { CoverUrl = cover } : t)];
         }
     }
 }

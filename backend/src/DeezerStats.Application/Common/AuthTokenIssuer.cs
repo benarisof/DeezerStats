@@ -8,8 +8,14 @@ namespace DeezerStats.Application.Common
     /// <summary>
     /// Implémentation partagée par RegisterUserUseCase (connexion automatique après inscription),
     /// AuthenticateUserUseCase (login) et RefreshAccessTokenUseCase (rotation) : centralise la
-    /// génération de l'access token, la génération + le hachage + la persistance du refresh token,
-    /// pour ne pas dupliquer cette logique dans chacun des trois cas d'usage.
+    /// génération de l'access token ainsi que la génération + le hachage du refresh token, pour ne
+    /// pas dupliquer cette logique dans chacun des trois cas d'usage.
+    ///
+    /// Ne committe PAS elle-même le nouveau refresh token (voir IRefreshTokenRepository.AddAsync,
+    /// qui ne fait que le suivre) : c'est à l'appelant de déclencher
+    /// IUnitOfWork.SaveChangesAsync, éventuellement conjointement avec ses propres autres écritures
+    /// de la même transaction logique (ex. RegisterUserUseCase, qui committe la création de
+    /// l'utilisateur ET l'émission du refresh token en un seul aller-retour base).
     /// </summary>
     public class AuthTokenIssuer(
         IAccessTokenGenerator accessTokenGenerator,

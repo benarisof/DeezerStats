@@ -19,6 +19,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Act
             await repository.AddAsync(token);
+            await context.SaveChangesAsync();
             RefreshToken? retrieved = await repository.GetByTokenHashAsync("hashed-token");
 
             // Assert
@@ -49,10 +50,12 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new RefreshTokenRepository(context);
             var token = new RefreshToken(Guid.NewGuid(), Guid.NewGuid(), "hashed-token", DateTime.UtcNow.AddDays(30));
             await repository.AddAsync(token);
+            await context.SaveChangesAsync();
 
             // Act
             token.Revoke();
             await repository.UpdateAsync(token);
+            await context.SaveChangesAsync();
 
             RefreshToken? retrieved = await repository.GetByTokenHashAsync("hashed-token");
 
@@ -78,9 +81,11 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             await repository.AddAsync(activeToken);
             await repository.AddAsync(alreadyRevokedToken);
             await repository.AddAsync(otherUserToken);
+            await context.SaveChangesAsync();
 
             // Act
             await repository.RevokeAllActiveForUserAsync(userId);
+            await context.SaveChangesAsync();
 
             // Assert
             (await repository.GetByTokenHashAsync("hash-active"))!.IsRevoked.Should().BeTrue();

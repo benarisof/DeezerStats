@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Application.UseCases.Users;
@@ -11,6 +12,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
     {
         private readonly Mock<IRefreshTokenRepository> _refreshTokenRepositoryMock;
         private readonly Mock<IRefreshTokenGenerator> _refreshTokenGeneratorMock;
+        private readonly Mock<IUnitOfWork> _unitOfWorkMock;
 
         private readonly LogoutUserUseCase _useCase;
 
@@ -18,6 +20,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
         {
             _refreshTokenRepositoryMock = new Mock<IRefreshTokenRepository>();
             _refreshTokenGeneratorMock = new Mock<IRefreshTokenGenerator>();
+            _unitOfWorkMock = new Mock<IUnitOfWork>();
 
             _refreshTokenGeneratorMock
                 .Setup(x => x.Hash(It.IsAny<string>()))
@@ -26,6 +29,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _useCase = new LogoutUserUseCase(
                 _refreshTokenRepositoryMock.Object,
                 _refreshTokenGeneratorMock.Object,
+                _unitOfWorkMock.Object,
                 new LogoutUserCommandValidator());
         }
 
@@ -55,6 +59,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _refreshTokenRepositoryMock.Verify(
                 x => x.UpdateAsync(existingToken, It.IsAny<CancellationToken>()),
                 Times.Once);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [Fact]
@@ -72,6 +80,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             _refreshTokenRepositoryMock.Verify(
                 x => x.UpdateAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Never);
         }
 
@@ -100,6 +112,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             _refreshTokenRepositoryMock.Verify(
                 x => x.UpdateAsync(It.IsAny<RefreshToken>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
                 Times.Never);
         }
     }

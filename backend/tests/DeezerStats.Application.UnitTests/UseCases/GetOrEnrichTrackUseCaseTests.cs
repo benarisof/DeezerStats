@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.ExternalServices.Deezer;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.UseCases.Tracks;
@@ -12,11 +13,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
     {
         private readonly ITrackRepository _trackRepository = Substitute.For<ITrackRepository>();
         private readonly IDeezerEnrichmentPort _deezerPort = Substitute.For<IDeezerEnrichmentPort>();
+        private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
         private readonly GetOrEnrichTrackUseCase _useCase;
 
         public GetOrEnrichTrackUseCaseTests()
         {
-            _useCase = new GetOrEnrichTrackUseCase(_trackRepository, _deezerPort);
+            _useCase = new GetOrEnrichTrackUseCase(_trackRepository, _deezerPort, _unitOfWork);
         }
 
         [Fact]
@@ -45,6 +47,8 @@ namespace DeezerStats.Application.UnitTests.UseCases
 
             await _trackRepository.DidNotReceiveWithAnyArgs()
                 .UpdateAsync(default!, default);
+
+            await _unitOfWork.DidNotReceiveWithAnyArgs().SaveChangesAsync(default);
         }
 
         [Fact]
@@ -72,8 +76,10 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.Duration!.TotalSeconds.Should().Be(243);
             result.CoverUrl.Should().Be("https://deezer.com/cover.jpg");
 
-            // Vérification : La mise à jour en BDD a bien été ordonnée
+            // Vérification : la mise à jour en BDD a bien été ordonnée, et réellement persistée
+            // (UpdateAsync ne fait plus que suivre le changement, voir ITrackRepository.UpdateAsync).
             await _trackRepository.Received(1).UpdateAsync(track, Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]
@@ -117,6 +123,7 @@ namespace DeezerStats.Application.UnitTests.UseCases
             result.Should().NotBeNull();
             result!.CoverUrl.Should().Be("https://deezer.com/cover.jpg");
             await _trackRepository.Received(1).UpdateAsync(track, Arg.Any<CancellationToken>());
+            await _unitOfWork.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         }
 
         [Fact]

@@ -1,3 +1,4 @@
+using DeezerStats.Application.Ports;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Application.Ports.Security;
 using DeezerStats.Domain.Aggregates.UserAggregate;
@@ -14,10 +15,12 @@ namespace DeezerStats.Application.UseCases.Users
     public class LogoutUserUseCase(
         IRefreshTokenRepository refreshTokenRepository,
         IRefreshTokenGenerator refreshTokenGenerator,
+        IUnitOfWork unitOfWork,
         IValidator<LogoutUserCommand> validator) : ILogoutUserUseCase
     {
         private readonly IRefreshTokenRepository _refreshTokenRepository = refreshTokenRepository;
         private readonly IRefreshTokenGenerator _refreshTokenGenerator = refreshTokenGenerator;
+        private readonly IUnitOfWork _unitOfWork = unitOfWork;
         private readonly IValidator<LogoutUserCommand> _validator = validator;
 
         public async Task ExecuteAsync(LogoutUserCommand command, CancellationToken ct = default)
@@ -35,6 +38,7 @@ namespace DeezerStats.Application.UseCases.Users
 
             existingToken.Revoke();
             await _refreshTokenRepository.UpdateAsync(existingToken, ct);
+            await _unitOfWork.SaveChangesAsync(ct);
         }
     }
 }

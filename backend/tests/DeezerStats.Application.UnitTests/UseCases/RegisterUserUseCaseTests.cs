@@ -37,11 +37,9 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new ValidationResult());
 
-            // Exécute réellement l'opération transactionnelle passée par le use case, comme le ferait
-            // l'implémentation réelle (voir Infrastructure.Persistence.UnitOfWork).
             _unitOfWorkMock
-                .Setup(x => x.ExecuteInTransactionAsync(It.IsAny<Func<Task>>(), It.IsAny<CancellationToken>()))
-                .Returns<Func<Task>, CancellationToken>((operation, _) => operation());
+                .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(1);
 
             _useCase = new RegisterUserUseCase(
                 _userRepositoryMock.Object,
@@ -89,6 +87,12 @@ namespace DeezerStats.Application.UnitTests.UseCases
                     It.IsAny<User>(),
                     It.IsAny<CancellationToken>()),
                 Times.Once);
+
+            // La création de l'utilisateur et l'émission du refresh token (AddAsync/IssueAsync ne
+            // committent plus individuellement) sont persistées ensemble par ce seul appel.
+            _unitOfWorkMock.Verify(
+                x => x.SaveChangesAsync(It.IsAny<CancellationToken>()),
+                Times.Once);
         }
 
         [Fact]
@@ -135,6 +139,75 @@ namespace DeezerStats.Application.UnitTests.UseCases
             _authTokenIssuerMock.Verify(
                 x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()),
                 Times.Never);
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncWhenSaveChangesFailsDueToConcurrentRegistrationShouldThrowConflictException()
+        {
+            // Arrange : deux inscriptions concurrentes avec le même email -- la vérification préalable
+            // (GetByEmailAsync) passe pour les deux, mais la contrainte d'unicité en base ne laisse
+            // qu'une seule écriture réussir (voir RegisterUserUseCase, filet de sécurité contre la
+            // race). AddAsync/IssueAsync ne committent plus individuellement (voir IUserRepository/
+            // AuthTokenIssuer) : c'est ce SEUL SaveChangesAsync qui peut désormais échouer.
+            var command = new RegisterUserCommand("user@test.com", "password", "Sofiane");
+
+            var winningUser = new User(
+                Guid.NewGuid(),
+                new Email(command.Email),
+                "hash-from-the-other-request",
+                "Other Sofiane");
+
+            _userRepositoryMock
+                .SetupSequence(x => x.GetByEmailAsync(It.IsAny<Email>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((User?)null) // vérification initiale : personne avec cet email pour l'instant
+                .ReturnsAsync(winningUser); // re-vérification après l'échec : un autre utilisateur a gagné la course
+
+            _passwordHasherMock.Setup(x => x.Hash(command.Password)).Returns("hashed-password");
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AuthTokensDto("jwt-token", "refresh-token", 3600));
+
+            _unitOfWorkMock
+                .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("Contrainte d'unicité violée."));
+
+            // Act
+            Task<AuthTokensDto> Action() => _useCase.ExecuteAsync(command);
+
+            // Assert
+            ConflictException exception = await Assert.ThrowsAsync<ConflictException>((Func<Task<AuthTokensDto>>)Action);
+            Assert.Equal("Un utilisateur existe déjà avec cette adresse email.", exception.Message);
+        }
+
+        [Fact]
+        public async Task ExecuteAsyncWhenSaveChangesFailsForAnUnrelatedReasonShouldNotMaskItAsConflict()
+        {
+            // Arrange : SaveChangesAsync échoue, mais pour une raison SANS rapport avec l'email (ex.
+            // panne de connexion) -- ne doit jamais être masqué sous un faux 409 (voir
+            // RegisterUserUseCase, qui ne retraduit en ConflictException que si un AUTRE utilisateur
+            // porte désormais cet email).
+            var command = new RegisterUserCommand("user@test.com", "password", "Sofiane");
+
+            _userRepositoryMock
+                .Setup(x => x.GetByEmailAsync(It.IsAny<Email>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((User?)null);
+
+            _passwordHasherMock.Setup(x => x.Hash(command.Password)).Returns("hashed-password");
+            _authTokenIssuerMock
+                .Setup(x => x.IssueAsync(It.IsAny<User>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new AuthTokensDto("jwt-token", "refresh-token", 3600));
+
+            var originalException = new InvalidOperationException("Panne de connexion à la base.");
+            _unitOfWorkMock
+                .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(originalException);
+
+            // Act
+            Task<AuthTokensDto> Action() => _useCase.ExecuteAsync(command);
+
+            // Assert : l'exception d'origine remonte telle quelle, pas de ConflictException.
+            InvalidOperationException exception = await Assert.ThrowsAsync<InvalidOperationException>(Action);
+            Assert.Same(originalException, exception);
         }
 
         [Fact]

@@ -19,6 +19,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
 
             // Act
             await repository.AddAsync(artist);
+            await context.SaveChangesAsync();
             Artist? retrieved = await repository.GetByIdAsync(artistId);
 
             // Assert
@@ -34,6 +35,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var repository = new ArtistRepository(context);
             var artist = new Artist(Guid.NewGuid(), "The Weeknd");
             await repository.AddAsync(artist);
+            await context.SaveChangesAsync();
 
             // Act
             Artist? retrieved = await repository.GetByNameAsync("  the weeknd ");
@@ -88,6 +90,7 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
             var daftPunk = new Artist(Guid.NewGuid(), "Daft Punk");
             await repository.AddAsync(weeknd);
             await repository.AddAsync(daftPunk);
+            await context.SaveChangesAsync();
 
             // Act : une seule des deux entrées demandées existe, avec une casse/espaces différents.
             IReadOnlyList<Artist> retrieved = await repository.GetByNamesAsync(["  the weeknd ", "Inconnu"]);
@@ -134,10 +137,12 @@ namespace DeezerStats.Infrastructure.UnitTests.Repositories
                 var writeRepository = new ArtistRepository(writeContext);
                 var artist = new Artist(artistId, "Daft Punk");
                 await writeRepository.AddAsync(artist);
+                await writeContext.SaveChangesAsync();
 
                 // Act
                 artist.EnrichCover("https://cdn-images.deezer.com/artist-cover.jpg");
                 await writeRepository.UpdateAsync(artist);
+                await writeContext.SaveChangesAsync();
             }
 
             // Assert

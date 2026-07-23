@@ -28,18 +28,14 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
                 .ToListAsync(ct);
         }
 
-        public async Task AddAsync(Track track, CancellationToken ct = default)
-        {
-            await _context.Tracks.AddAsync(track, ct);
-            await _context.SaveChangesAsync(ct);
-        }
+        public async Task AddAsync(Track track, CancellationToken ct = default) => await _context.Tracks.AddAsync(track, ct);
 
         public async Task AddRangeAsync(IEnumerable<Track> tracks, CancellationToken ct = default) => await _context.Tracks.AddRangeAsync(tracks, ct);
 
-        public async Task UpdateAsync(Track track, CancellationToken ct = default)
+        public Task UpdateAsync(Track track, CancellationToken ct = default)
         {
             _context.Tracks.Update(track);
-            await _context.SaveChangesAsync(ct);
+            return Task.CompletedTask;
         }
     }
 }

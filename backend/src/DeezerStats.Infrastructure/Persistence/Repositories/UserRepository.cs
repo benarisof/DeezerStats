@@ -1,4 +1,3 @@
-using DeezerStats.Application.Common.Exceptions;
 using DeezerStats.Application.Ports.Repositories;
 using DeezerStats.Domain.Aggregates.UserAggregate;
 using DeezerStats.Domain.ValueObjects;
@@ -24,21 +23,10 @@ namespace DeezerStats.Infrastructure.Persistence.Repositories
                 .FirstOrDefaultAsync(u => u.Email == email, ct);
         }
 
-        public async Task AddAsync(
-            User user,
-            CancellationToken ct = default)
-        {
-            try
-            {
-                await _context.Users.AddAsync(user, ct);
-                await _context.SaveChangesAsync(ct);
-            }
-            catch (Exception ex) when (ex is DbUpdateException or InvalidOperationException)
-            {
-                throw new ConflictException(
-                    "Un utilisateur existe déjà avec cette adresse email.",
-                    ex);
-            }
-        }
+        // Ne déclenche plus SaveChangesAsync elle-même (voir IUserRepository.AddAsync) : la
+        // violation de la contrainte d'unicité sur l'email ne peut donc plus être détectée ici --
+        // c'est désormais RegisterUserUseCase, au moment de son propre SaveChangesAsync, qui
+        // retraduit un DbUpdateException en ConflictException.
+        public async Task AddAsync(User user, CancellationToken ct = default) => await _context.Users.AddAsync(user, ct);
     }
 }
