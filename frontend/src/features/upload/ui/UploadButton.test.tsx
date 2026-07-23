@@ -87,9 +87,7 @@ describe("UploadButton", () => {
 
     await advanceTimers(RESULT_DISMISS_DELAY_MS - 1000);
 
-    expect(
-      screen.getByText(/3 morceau\(x\) importé\(s\)/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/3 morceau\(x\) importé\(s\)/)).toBeInTheDocument();
   });
 
   it("shows an error message and dismisses it automatically too", async () => {

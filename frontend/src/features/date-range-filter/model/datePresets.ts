@@ -4,7 +4,8 @@ import type { DateRangeParams } from "@/shared/api/types";
  * "custom" n'est jamais choisie par l'utilisateur directement : elle apparaît uniquement quand la
  * plage actuelle (issue de l'URL, potentiellement modifiée via les champs "Du"/"au") ne correspond
  * à aucune période prédéfinie. */
-export type DatePresetKey = "last30" | "last90" | "last365" | "allTime" | "custom";
+export type DatePresetKey =
+  "last30" | "last90" | "last365" | "allTime" | "custom";
 
 const PRESET_DAYS: Record<"last30" | "last90" | "last365", number> = {
   last30: 30,
@@ -44,7 +45,9 @@ function presetFromDate(days: number): string {
 }
 
 /** Traduit une période prédéfinie en plage from/to prête à passer à useDateRangeParams().setRange. */
-export function rangeForPreset(key: Exclude<DatePresetKey, "custom">): DateRangeParams {
+export function rangeForPreset(
+  key: Exclude<DatePresetKey, "custom">,
+): DateRangeParams {
   if (key === "allTime") {
     return { from: undefined, to: undefined };
   }

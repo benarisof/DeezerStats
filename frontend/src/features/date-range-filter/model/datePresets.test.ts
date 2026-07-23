@@ -74,16 +74,14 @@ describe("detectActivePreset", () => {
 
   it("returns custom whenever 'to' is set, regardless of 'from'", () => {
     expect(detectActivePreset({ to: "2026-07-23" })).toBe("custom");
-    expect(
-      detectActivePreset({ from: "2026-06-24", to: "2026-07-23" }),
-    ).toBe("custom");
+    expect(detectActivePreset({ from: "2026-06-24", to: "2026-07-23" })).toBe(
+      "custom",
+    );
   });
 
   it("round-trips every rolling preset produced by rangeForPreset", () => {
     for (const option of DATE_PRESET_OPTIONS) {
-      expect(detectActivePreset(rangeForPreset(option.key))).toBe(
-        option.key,
-      );
+      expect(detectActivePreset(rangeForPreset(option.key))).toBe(option.key);
     }
   });
 
