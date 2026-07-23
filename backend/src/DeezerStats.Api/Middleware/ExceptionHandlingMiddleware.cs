@@ -77,13 +77,6 @@ namespace DeezerStats.Api.Middleware
                     Detail = domainEx.Message,
                 },
 
-                NotFoundException notFoundEx => new ProblemDetails
-                {
-                    Status = (int)HttpStatusCode.NotFound,
-                    Title = "Ressource non trouvée",
-                    Detail = notFoundEx.Message,
-                },
-
                 _ => HandleUnexpectedException(exception),
             };
 
