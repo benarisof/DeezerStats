@@ -5,7 +5,7 @@ namespace DeezerStats.Domain.Aggregates.TrackAggregate
 {
     public class Track : Entity<Guid>, IAggregateRoot
     {
-        public Track(Guid id, Isrc isrc, string title, Guid artistId, Guid albumId)
+        public Track(Guid id, Isrc isrc, string title, Guid artistId, Guid albumId, string? featuredArtists = null)
             : base(id)
         {
             if (string.IsNullOrWhiteSpace(title))
@@ -17,6 +17,7 @@ namespace DeezerStats.Domain.Aggregates.TrackAggregate
             Title = title.Trim();
             ArtistId = artistId != Guid.Empty ? artistId : throw new DomainException("Un morceau doit être lié à un artiste.");
             AlbumId = albumId != Guid.Empty ? albumId : throw new DomainException("Un morceau doit être lié à un album.");
+            FeaturedArtists = string.IsNullOrWhiteSpace(featuredArtists) ? null : featuredArtists.Trim();
         }
 
         private Track()
@@ -30,6 +31,16 @@ namespace DeezerStats.Domain.Aggregates.TrackAggregate
         public Guid ArtistId { get; private set; }
 
         public Guid AlbumId { get; private set; }
+
+        /// <summary>
+        /// Artistes en featuring sur ce morceau, tels qu'importés (ex. "Future" pour une ligne dont
+        /// la colonne artiste valait "The Weeknd, Future"), stockés en texte libre pour l'affichage
+        /// uniquement. Ne participe à aucune règle métier ni à aucun rattachement Artist/Album --
+        /// seul le premier nom de la colonne artiste (voir ImportListeningHistoryUseCase) détermine
+        /// l'artiste et l'album du morceau, afin d'éviter qu'un même album se retrouve fragmenté en
+        /// plusieurs entités selon les featurings de chaque morceau.
+        /// </summary>
+        public string? FeaturedArtists { get; private set; }
 
         public Duration? Duration { get; private set; }
 

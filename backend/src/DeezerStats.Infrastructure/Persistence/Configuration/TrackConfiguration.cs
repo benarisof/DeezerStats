@@ -26,6 +26,9 @@ public class TrackConfiguration : IEntityTypeConfiguration<Track>
             .HasMaxLength(255)
             .IsRequired();
 
+        builder.Property(t => t.FeaturedArtists)
+            .HasMaxLength(255);
+
         // Conversion du Value Object Duration -> int (secondes)
         builder.Property(t => t.Duration)
             .HasConversion(DomainValueConverters.NullableDurationConverter);

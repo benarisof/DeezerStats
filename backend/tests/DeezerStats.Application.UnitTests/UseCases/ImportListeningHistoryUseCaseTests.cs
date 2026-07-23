@@ -221,6 +221,49 @@ namespace DeezerStats.Application.UnitTests.UseCases
         }
 
         [Fact]
+        public async Task ExecuteAsyncWithFeaturingArtistsAcrossRowsShouldGroupUnderThePrimaryArtistAndAlbum()
+        {
+            // Arrange : trois morceaux du même album, chacun crédité différemment selon les
+            // featurings (comme le fait réellement l'export Deezer) -- sans le découpage sur ", ",
+            // ils produiraient trois Artist/Album distincts pour ce qui est en réalité un seul album
+            // (voir l'incident "Hurry Up Tomorrow" fragmenté en 7 entités).
+            var userId = Guid.NewGuid();
+            DateTime listenedAt1 = DateTime.UtcNow.AddHours(-3);
+            DateTime listenedAt2 = DateTime.UtcNow.AddHours(-2);
+            DateTime listenedAt3 = DateTime.UtcNow.AddHours(-1);
+
+            var soloRow = new ExcelListeningRow("Cry For Me", "The Weeknd", "Hurry Up Tomorrow", "USUM72315268", 240, listenedAt1);
+            var featuringRow = new ExcelListeningRow("Timeless", "The Weeknd, Playboi Carti", "Hurry Up Tomorrow", "USUM72315269", 200, listenedAt2);
+            var multiFeaturingRow = new ExcelListeningRow("Reflections Laughing", "The Weeknd, Travis Scott, Florence + The Machine", "Hurry Up Tomorrow", "USUM72315270", 220, listenedAt3);
+
+            _excelParser.ParseHistoryAsync(Arg.Any<Stream>(), Arg.Any<CancellationToken>())
+                .Returns([soloRow, featuringRow, multiFeaturingRow]);
+
+            var command = new ImportListeningHistoryCommand(userId, new MemoryStream());
+
+            // Act
+            ImportReport result = await _useCase.ExecuteAsync(command);
+
+            // Assert
+            result.ImportedCount.Should().Be(3);
+            result.ErrorCount.Should().Be(0);
+
+            await _artistRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Artist>>(a => a != null && a.Count() == 1 && a.Single().Name == "The Weeknd"),
+                Arg.Any<CancellationToken>());
+            await _albumRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Album>>(a => a != null && a.Count() == 1 && a.Single().Title == "Hurry Up Tomorrow"),
+                Arg.Any<CancellationToken>());
+
+            await _trackRepository.Received(1).AddRangeAsync(
+                Arg.Is<IEnumerable<Track>>(tracks => tracks != null
+                    && tracks.Single(t => t.Title == "Cry For Me").FeaturedArtists == null
+                    && tracks.Single(t => t.Title == "Timeless").FeaturedArtists == "Playboi Carti"
+                    && tracks.Single(t => t.Title == "Reflections Laughing").FeaturedArtists == "Travis Scott, Florence + The Machine"),
+                Arg.Any<CancellationToken>());
+        }
+
+        [Fact]
         public async Task ExecuteAsyncWhenArtistAndAlbumAlreadyExistInDatabaseShouldReuseThemInsteadOfCreatingDuplicates()
         {
             // Arrange : l'artiste et l'album ont déjà été créés lors d'un import précédent.

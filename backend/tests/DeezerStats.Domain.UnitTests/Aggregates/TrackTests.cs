@@ -48,6 +48,37 @@ namespace DeezerStats.Domain.UnitTests.Aggregates
         }
 
         [Fact]
+        public void ConstructorWithFeaturedArtistsShouldTrimAndStoreThem()
+        {
+            // Act
+            var track = new Track(
+                id: Guid.NewGuid(),
+                isrc: new Isrc("USCM51300736"),
+                title: "Furthest Thing",
+                artistId: Guid.NewGuid(),
+                albumId: Guid.NewGuid(),
+                featuredArtists: "  Playboi Carti  ");
+
+            // Assert
+            track.FeaturedArtists.Should().Be("Playboi Carti");
+        }
+
+        [Fact]
+        public void ConstructorWithoutFeaturedArtistsShouldLeaveThemNull()
+        {
+            // Act
+            var track = new Track(
+                id: Guid.NewGuid(),
+                isrc: new Isrc("USCM51300736"),
+                title: "Furthest Thing",
+                artistId: Guid.NewGuid(),
+                albumId: Guid.NewGuid());
+
+            // Assert
+            track.FeaturedArtists.Should().BeNull();
+        }
+
+        [Fact]
         public void ConstructorWithEmptyTitleShouldThrowDomainException()
         {
             // Act

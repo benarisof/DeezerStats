@@ -91,7 +91,14 @@ namespace DeezerStats.Application.UseCases.Import
 
             var rowsNeedingNewTrack = validRows.Where(r => !trackByIsrc.ContainsKey(r.Isrc)).ToList();
 
-            var distinctArtistNames = rowsNeedingNewTrack.Select(r => r.Row.ArtistName).Distinct().ToArray();
+            // Un même album peut être crédité différemment selon le morceau ("The Weeknd" vs
+            // "The Weeknd, Future" pour un featuring) : seul le premier nom de la colonne artiste
+            // (voir ParseArtistCredit) détermine l'Artist/Album du morceau, pour éviter qu'un même
+            // album ne se retrouve fragmenté en plusieurs entités distinctes selon les featurings.
+            var distinctArtistNames = rowsNeedingNewTrack
+                .Select(r => ParseArtistCredit(r.Row.ArtistName).PrimaryArtistName)
+                .Distinct()
+                .ToArray();
             IReadOnlyList<Artist> existingArtists = await _artistRepository.GetByNamesAsync(distinctArtistNames, ct);
             var artistByNormalizedName = existingArtists.ToDictionary(a => a.NormalizedName);
 
@@ -131,10 +138,11 @@ namespace DeezerStats.Application.UseCases.Import
 
                     if (track == null)
                     {
-                        Artist artist = ResolveArtist(row.ArtistName, artistByNormalizedName, newArtists);
+                        (var primaryArtistName, var featuredArtists) = ParseArtistCredit(row.ArtistName);
+                        Artist artist = ResolveArtist(primaryArtistName, artistByNormalizedName, newArtists);
                         Album album = ResolveAlbum(row.AlbumTitle, artist.Id, albumByArtistAndNormalizedTitle, newAlbums);
 
-                        track = new Track(Guid.NewGuid(), isrc, row.TrackTitle, artist.Id, album.Id);
+                        track = new Track(Guid.NewGuid(), isrc, row.TrackTitle, artist.Id, album.Id, featuredArtists);
                         newTracks.Add(track);
                         trackByIsrc[isrc] = track; // pour les lignes suivantes référençant le même morceau
                     }
@@ -200,6 +208,30 @@ namespace DeezerStats.Application.UseCases.Import
                 SkippedCount: skippedCount,
                 ErrorCount: errors.Count,
                 Errors: errors);
+        }
+
+        /// <summary>
+        /// Sépare la colonne artiste brute de l'export Deezer (ex. "The Weeknd, Future") en artiste
+        /// principal ("The Weeknd") et featurings ("Future") : Deezer liste systématiquement tous les
+        /// artistes crédités sur un morceau dans cette seule colonne, séparés par ", ", sans distinguer
+        /// l'artiste principal. Sans ce découpage, chaque combinaison de featuring produirait un
+        /// Artist/Album distinct pour un même album (voir l'incident "Hurry Up Tomorrow" fragmenté en
+        /// 7 entités), au lieu d'être regroupée sous l'artiste principal.
+        /// </summary>
+        private static (string PrimaryArtistName, string? FeaturedArtists) ParseArtistCredit(string rawArtistName)
+        {
+            var trimmed = rawArtistName.Trim();
+            var separatorIndex = trimmed.IndexOf(", ", StringComparison.Ordinal);
+
+            if (separatorIndex < 0)
+            {
+                return (trimmed, null);
+            }
+
+            var primaryArtistName = trimmed[..separatorIndex].Trim();
+            var featuredArtists = trimmed[(separatorIndex + 2)..].Trim();
+
+            return (primaryArtistName, featuredArtists.Length == 0 ? null : featuredArtists);
         }
 
         private static Artist ResolveArtist(
