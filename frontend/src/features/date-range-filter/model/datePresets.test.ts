@@ -1,3 +1,7 @@
+/// <reference types="node" />
+// La suite de l'app n'a pas besoin des globals Node (voir "types" dans tsconfig.app.json) : ce seul
+// fichier lit process.env.TZ pour vérifier le comportement autour d'un fuseau horaire précis, d'où
+// cette référence locale plutôt qu'une exposition globale de @types/node à tout le projet.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DATE_PRESET_OPTIONS,
