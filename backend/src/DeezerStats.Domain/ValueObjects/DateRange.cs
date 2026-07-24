@@ -18,21 +18,5 @@ namespace DeezerStats.Domain.ValueObjects
         public DateOnly? From { get; init; }
 
         public DateOnly? To { get; init; }
-
-        public bool Contains(DateTime dateTime)
-        {
-            var date = DateOnly.FromDateTime(dateTime);
-            if (From.HasValue && date < From.Value)
-            {
-                return false;
-            }
-
-            if (To.HasValue && date > To.Value)
-            {
-                return false;
-            }
-
-            return true;
-        }
     }
 }

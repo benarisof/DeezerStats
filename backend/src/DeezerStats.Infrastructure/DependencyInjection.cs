@@ -89,11 +89,17 @@ namespace DeezerStats.Infrastructure
                 .Bind(configuration.GetSection(MeilisearchOptions.SectionName))
                 .ValidateOnStart();
 
-            // Enregistrement du Client Meilisearch en Singleton
+            // Enregistrement du Client Meilisearch en Singleton : réutilise l'unique
+            // IOptions<MeilisearchOptions> déjà lié et validé ci-dessus (au lieu de relire
+            // IConfiguration une seconde fois indépendamment) -- une seule source de vérité pour
+            // cette configuration, qui garantit qu'une évolution future de MeilisearchOptionsValidator
+            // s'applique aussi à la construction du client réel, celui qui parle effectivement à
+            // Meilisearch. IOptions<T>.Value déclenche lui-même les IValidateOptions<T> enregistrés
+            // (dont MeilisearchOptionsValidator) dès la première résolution, donc aucune perte de
+            // protection par rapport à ValidateOnStart() ci-dessus.
             services.AddSingleton(sp =>
             {
-                MeilisearchOptions options = configuration.GetSection(MeilisearchOptions.SectionName).Get<MeilisearchOptions>()
-                    ?? throw new InvalidOperationException($"La configuration '{MeilisearchOptions.SectionName}' est introuvable ou mal formatée.");
+                MeilisearchOptions options = sp.GetRequiredService<IOptions<MeilisearchOptions>>().Value;
                 return new MeilisearchClient(options.Url, options.MasterKey);
             });
 

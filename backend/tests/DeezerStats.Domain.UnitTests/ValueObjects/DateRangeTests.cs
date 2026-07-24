@@ -20,16 +20,5 @@ namespace DeezerStats.Domain.UnitTests.ValueObjects
             act.Should().Throw<DomainException>()
                .WithMessage("La date de début ne peut pas être postérieure à la date de fin.");
         }
-
-        [Fact]
-        public void ContainsWhenDateInBetweenShouldReturnTrue()
-        {
-            // Arrange
-            var range = new DateRange(new DateOnly(2025, 01, 01), new DateOnly(2025, 12, 31));
-            var testDate = new DateTime(2025, 06, 15);
-
-            // Act & Assert
-            range.Contains(testDate).Should().BeTrue();
-        }
     }
 }
