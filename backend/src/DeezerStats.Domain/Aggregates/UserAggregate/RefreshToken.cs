@@ -43,10 +43,8 @@ namespace DeezerStats.Domain.Aggregates.UserAggregate
 
         public DateTime? RevokedAt { get; private set; }
 
-        /// <summary>
-        /// Obtient identifiant du token émis en remplacement de celui-ci lors d'une rotation (voir Revoke),
-        /// pour tracer la chaîne de rotation en cas d'investigation (réutilisation d'un token révoqué).
-        /// </summary>
+        // Identifiant du token émis en remplacement de celui-ci lors d'une rotation (voir Revoke),
+        // pour tracer la chaîne en cas d'investigation (réutilisation d'un token révoqué).
         public Guid? ReplacedByTokenId { get; private set; }
 
         public bool IsExpired => DateTime.UtcNow >= ExpiresAt;
@@ -55,15 +53,7 @@ namespace DeezerStats.Domain.Aggregates.UserAggregate
 
         public bool IsActive => !IsExpired && !IsRevoked;
 
-        /// <summary>
-        /// Révoque le token (logout explicite, rotation lors d'un refresh, ou réponse à une
-        /// réutilisation détectée d'un token déjà révoqué). Idempotent : révoquer un token déjà
-        /// révoqué ne fait rien, pour ne jamais écraser sa date de révocation d'origine.
-        /// </summary>
-        /// <param name="replacedByTokenId">
-        /// Identifiant du nouveau token qui remplace celui-ci lors d'une rotation.
-        /// Optionnel ; utilisé pour tracer la chaîne de remplacement.
-        /// </param>
+        // Idempotent : révoquer un token déjà révoqué ne fait rien, pour ne jamais écraser sa date de révocation d'origine.
         public void Revoke(Guid? replacedByTokenId = null)
         {
             if (IsRevoked)

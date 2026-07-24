@@ -50,11 +50,9 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IExcelParserPort, ClosedXmlExcelParser>();
             services.AddSingleton<IPasswordHasher, BCryptPasswordHasher>();
 
-            // Adaptateur Deezer : HttpClient typé + résilience (retry/timeout) via Polly. Le
-            // timeout par tentative et le nombre de tentatives sont volontairement plus courts que
-            // les défauts d'AddStandardResilienceHandler, car l'enrichissement se fait à la demande
-            // au fil des requêtes HTTP (voir CatalogEnrichmentCoordinator, GetAlbumDetailUseCase...)
-            // et ne doit donc pas monopoliser un thread trop longtemps sur une API tierce.
+            // Timeout/retry volontairement plus courts que les défauts d'AddStandardResilienceHandler :
+            // l'enrichissement Deezer se fait à la demande au fil des requêtes HTTP et ne doit pas
+            // monopoliser un thread trop longtemps sur une API tierce.
             services.AddHttpClient<IDeezerEnrichmentPort, DeezerHttpEnrichmentAdapter>(client =>
             {
                 client.BaseAddress = new Uri("https://api.deezer.com/");
@@ -67,10 +65,8 @@ namespace DeezerStats.Infrastructure
                 options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(20);
             });
 
-            // Enrichissement parallèle à concurrence bornée pour les listes (top albums/artistes/
-            // morceaux, accueil) : Singleton car sans état propre, il ne dépend que d'IServiceScopeFactory
-            // (lui-même Singleton) pour créer un scope isolé par élément enrichi (voir
-            // CatalogEnrichmentCoordinator).
+            // Singleton : sans état propre, ne dépend que d'IServiceScopeFactory (lui-même Singleton)
+            // pour créer un scope isolé par élément enrichi.
             services.AddSingleton<ICatalogEnrichmentCoordinator, CatalogEnrichmentCoordinator>();
 
             // Configuration de JwtSettings
@@ -81,22 +77,15 @@ namespace DeezerStats.Infrastructure
             services.AddScoped<IAccessTokenGenerator, JwtAccessTokenGenerator>();
             services.AddSingleton<IRefreshTokenGenerator, RefreshTokenGenerator>();
 
-            // Configuration de MeilisearchOptions (même pattern que JwtSettings ci-dessus : un
-            // IValidateOptions dédié + ValidateOnStart(), pour échouer bruyamment au démarrage
-            // plutôt que de laisser l'API tourner avec une configuration de recherche invalide).
+            // Même pattern que JwtSettings ci-dessus : IValidateOptions dédié + ValidateOnStart(),
+            // pour échouer bruyamment au démarrage plutôt que de tourner avec une config invalide.
             services.AddSingleton<IValidateOptions<MeilisearchOptions>, MeilisearchOptionsValidator>();
             services.AddOptions<MeilisearchOptions>()
                 .Bind(configuration.GetSection(MeilisearchOptions.SectionName))
                 .ValidateOnStart();
 
-            // Enregistrement du Client Meilisearch en Singleton : réutilise l'unique
-            // IOptions<MeilisearchOptions> déjà lié et validé ci-dessus (au lieu de relire
-            // IConfiguration une seconde fois indépendamment) -- une seule source de vérité pour
-            // cette configuration, qui garantit qu'une évolution future de MeilisearchOptionsValidator
-            // s'applique aussi à la construction du client réel, celui qui parle effectivement à
-            // Meilisearch. IOptions<T>.Value déclenche lui-même les IValidateOptions<T> enregistrés
-            // (dont MeilisearchOptionsValidator) dès la première résolution, donc aucune perte de
-            // protection par rapport à ValidateOnStart() ci-dessus.
+            // Réutilise l'IOptions<MeilisearchOptions> déjà lié/validé ci-dessus plutôt que de relire
+            // IConfiguration indépendamment : une seule source de vérité pour cette configuration.
             services.AddSingleton(sp =>
             {
                 MeilisearchOptions options = sp.GetRequiredService<IOptions<MeilisearchOptions>>().Value;

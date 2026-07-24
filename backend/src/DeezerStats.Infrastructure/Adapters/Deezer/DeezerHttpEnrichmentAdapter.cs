@@ -8,19 +8,10 @@ using Polly.Timeout;
 namespace DeezerStats.Infrastructure.Adapters.Deezer
 {
     /// <summary>
-    /// Adaptateur HTTP vers l'API publique Deezer (https://developers.deezer.com/api), qui ne
-    /// nécessite aucune clé pour les endpoints de lecture utilisés ici (track/isrc:, search/album,
-    /// album/{id}, search/artist). La résilience (retry + timeout) est configurée au niveau du
-    /// HttpClient typé, pas ici (voir Infrastructure.DependencyInjection,
-    /// AddStandardResilienceHandler) : cet adaptateur ne fait que traduire les réponses JSON de
-    /// Deezer en objets du vocabulaire applicatif.
-    ///
-    /// Volontairement tolérant aux pannes : une ressource introuvable, une réponse d'erreur Deezer,
-    /// un JSON invalide ou un échec réseau/timeout renvoient null plutôt que de lever une
-    /// exception. Un échec d'enrichissement ne doit jamais faire échouer l'import ou la
-    /// consultation de l'artiste/l'album/le morceau concerné (voir GetOrEnrichArtistUseCase/
-    /// GetOrEnrichAlbumUseCase/GetOrEnrichTrackUseCase) : il laisse simplement ses métadonnées non
-    /// enrichies, en vue d'une prochaine tentative.
+    /// Adaptateur HTTP vers l'API publique Deezer (aucune clé requise pour les endpoints utilisés
+    /// ici). Volontairement tolérant aux pannes : ressource introuvable, erreur Deezer, JSON invalide
+    /// ou échec réseau/timeout renvoient null plutôt que de lever une exception, pour ne jamais faire
+    /// échouer l'import ou la consultation d'un artiste/album/morceau à cause d'un enrichissement raté.
     /// </summary>
     public class DeezerHttpEnrichmentAdapter(HttpClient httpClient) : IDeezerEnrichmentPort
     {
@@ -75,16 +66,9 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
             return new DeezerAlbumMetadata(coverUrl, releaseDate, duration);
         }
 
-        /// <summary>
-        /// Résout la couverture d'un artiste en priorité via un de ses albums déjà connus (le lien
-        /// album → artiste est une donnée structurée chez Deezer, donc fiable), et seulement en
-        /// repli via une recherche texte sur son seul nom (ambiguë : sujette aux homonymes -- voir
-        /// FetchArtistByNameAsync, qui n'accepte le résultat que si le nom retourné correspond).
-        /// </summary>
-        /// <param name="artistName">Nom de l'artiste, utilisé pour la recherche album et en repli pour la recherche par nom.</param>
-        /// <param name="knownAlbumTitle">Titre d'un album déjà connu de cet artiste, ou null si aucun n'est disponible.</param>
-        /// <param name="ct">Jeton d'annulation pour la requête asynchrone.</param>
-        /// <returns>Les métadonnées de l'artiste (couverture), ou null si aucune n'a pu être résolue de façon fiable.</returns>
+        // Résout la couverture en priorité via un album déjà connu (lien album -> artiste fiable
+        // chez Deezer), et seulement en repli via une recherche par nom seul (ambiguë, voir
+        // FetchArtistByNameAsync).
         public async Task<DeezerArtistMetadata?> FetchArtistMetadataAsync(string artistName, string? knownAlbumTitle, CancellationToken ct = default)
         {
             if (!string.IsNullOrWhiteSpace(knownAlbumTitle))
@@ -103,12 +87,8 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
             return await FetchArtistByNameAsync(artistName, ct);
         }
 
-        /// <summary>
-        /// Distingue les échecs "attendus" d'appel à Deezer (réseau, JSON malformé, timeout déclenché
-        /// par la politique de résilience) — à absorber en renvoyant null — d'une annulation
-        /// explicitement demandée par l'appelant (son <see cref="CancellationToken"/>), qui doit au
-        /// contraire continuer à se propager normalement.
-        /// </summary>
+        // Distingue les échecs "attendus" (réseau, JSON malformé, timeout) -- à absorber en
+        // renvoyant null -- d'une annulation demandée par l'appelant, qui doit continuer à se propager.
         private static bool IsTransientEnrichmentFailure(Exception ex) => ex switch
         {
             HttpRequestException => true,
@@ -121,12 +101,8 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
         private static bool NamesMatch(string left, string right) =>
             string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 
-        /// <summary>
-        /// Recherche album + détails (<c>GET search/album</c> puis <c>GET album/{id}</c>), factorisée
-        /// entre FetchAlbumMetadataAsync (couverture/date de sortie/durée de l'album lui-même) et
-        /// FetchArtistMetadataAsync (couverture de l'artiste via le sous-objet "artist" de la même
-        /// réponse de détails).
-        /// </summary>
+        // Recherche album + détails, factorisée entre FetchAlbumMetadataAsync (couverture/date/durée
+        // de l'album) et FetchArtistMetadataAsync (couverture artiste via le sous-objet "artist").
         private async Task<DeezerAlbumDetailsResponse?> FetchAlbumDetailsAsync(string artistName, string albumTitle, CancellationToken ct)
         {
             try
@@ -168,13 +144,9 @@ namespace DeezerStats.Infrastructure.Adapters.Deezer
             }
         }
 
-        /// <summary>
-        /// Repli : recherche par nom seul (<c>GET search/artist</c>). Une recherche texte libre sur
-        /// un seul champ est intrinsèquement ambiguë (homonymes, classement par pertinence Deezer et
-        /// non par exactitude) : le résultat n'est accepté que si le nom qu'il porte correspond,
-        /// une fois normalisé, au nom recherché -- mieux vaut aucune couverture qu'une couverture du
-        /// mauvais artiste.
-        /// </summary>
+        // Repli : recherche par nom seul, intrinsèquement ambiguë (homonymes) -- le résultat n'est
+        // accepté que si le nom retourné correspond, mieux vaut aucune couverture qu'une couverture
+        // du mauvais artiste.
         private async Task<DeezerArtistMetadata?> FetchArtistByNameAsync(string artistName, CancellationToken ct)
         {
             try

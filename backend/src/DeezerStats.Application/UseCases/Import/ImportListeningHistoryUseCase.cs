@@ -46,9 +46,8 @@ namespace DeezerStats.Application.UseCases.Import
 
             var errors = new List<ImportRowError>();
 
-            // Étape 1 (en mémoire, aucun accès base) : valider le format ISRC de chaque ligne. Isoler
-            // ici les lignes invalides évite de gaspiller des allers-retours en base sur des données
-            // qui de toute façon ne pourront pas être importées.
+            // Valider le format ISRC en mémoire d'abord, pour ne pas gaspiller d'allers-retours en
+            // base sur des lignes qui de toute façon ne pourront pas être importées.
             var validRows = new List<(int RowIndex, ExcelListeningRow Row, Isrc Isrc)>();
             var rowIndex = 1; // Ligne 1 correspond aux en-têtes Excel
             foreach (ExcelListeningRow row in rows)
@@ -73,28 +72,25 @@ namespace DeezerStats.Application.UseCases.Import
                 return new ImportReport(0, 0, errors.Count, errors);
             }
 
-            // Étapes 2 à 4 : quelques allers-retours en base (bornés par le nombre de morceaux/
-            // artistes/albums DISTINCTS du fichier, pas par son nombre de lignes) au lieu d'un
-            // aller-retour par ligne. Sur un fichier de ~50 000 lignes, c'est la différence entre
-            // quelques requêtes et des dizaines de milliers.
+            // Allers-retours base bornés par le nombre d'entités DISTINCTES du fichier (pas par son
+            // nombre de lignes) : sur ~50 000 lignes, la différence entre quelques requêtes et des
+            // dizaines de milliers.
             Isrc[] distinctIsrcs = [.. validRows.Select(r => r.Isrc).Distinct()];
 
             IReadOnlyList<Track> existingTracks = await _trackRepository.GetByIsrcsAsync(distinctIsrcs, ct);
             var trackByIsrc = existingTracks.ToDictionary(t => t.Isrc);
 
-            // Interrogée par TrackId (et non par ISRC, voir ListeningEvent.TrackId) : un doublon en
-            // base ne peut de toute façon concerner qu'un morceau déjà existant, un morceau tout
-            // juste créé par cet import n'ayant par définition aucune écoute antérieure enregistrée.
+            // Par TrackId et non par ISRC : un doublon ne peut concerner qu'un morceau déjà existant,
+            // un morceau tout juste créé par cet import n'ayant par définition aucune écoute antérieure.
             Guid[] existingTrackIds = [.. existingTracks.Select(t => t.Id)];
             IReadOnlyDictionary<Guid, HashSet<DateTime>> existingListenedAtsByTrackId =
                 await _listeningEventRepository.GetExistingListenedAtsAsync(command.UserId, existingTrackIds, ct);
 
             var rowsNeedingNewTrack = validRows.Where(r => !trackByIsrc.ContainsKey(r.Isrc)).ToList();
 
-            // Un même album peut être crédité différemment selon le morceau ("The Weeknd" vs
-            // "The Weeknd, Future" pour un featuring) : seul le premier nom de la colonne artiste
-            // (voir ParseArtistCredit) détermine l'Artist/Album du morceau, pour éviter qu'un même
-            // album ne se retrouve fragmenté en plusieurs entités distinctes selon les featurings.
+            // Seul le premier nom de la colonne artiste (voir ParseArtistCredit) détermine
+            // l'Artist/Album du morceau, pour éviter qu'un même album ne se retrouve fragmenté selon
+            // les featurings ("The Weeknd" vs "The Weeknd, Future").
             var distinctArtistNames = rowsNeedingNewTrack
                 .Select(r => ParseArtistCredit(r.Row.ArtistName).PrimaryArtistName)
                 .Distinct()
@@ -107,7 +103,6 @@ namespace DeezerStats.Application.UseCases.Import
             var albumByArtistAndNormalizedTitle =
                 existingAlbums.ToDictionary(a => (a.ArtistId, a.NormalizedTitle));
 
-            // Étape 5 (en mémoire, aucun accès base) : construction des nouvelles entités à créer.
             var newArtists = new Dictionary<string, Artist>();
             var newAlbums = new Dictionary<(Guid ArtistId, string NormalizedTitle), Album>();
             var newTracks = new List<Track>();
@@ -125,9 +120,7 @@ namespace DeezerStats.Application.UseCases.Import
                         && existingListenedAtsByTrackId.TryGetValue(track.Id, out HashSet<DateTime>? listenedDates)
                         && listenedDates?.Contains(row.ListenedAt) == true;
 
-                    // Empêche aussi qu'une même ligne dupliquée deux fois DANS le fichier lui-même
-                    // (par ex. export Deezer contenant deux fois la même écoute) ne soit comptée
-                    // deux fois comme "importée".
+                    // Empêche aussi qu'une même ligne dupliquée DANS le fichier lui-même ne soit comptée deux fois comme "importée".
                     var alreadyInThisFile = !processedInThisImport.Add((isrc, row.ListenedAt));
 
                     if (alreadyInDatabase || alreadyInThisFile)
@@ -164,11 +157,8 @@ namespace DeezerStats.Application.UseCases.Import
                 }
             }
 
-            // Étape 6 : un seul commit atomique pour tout le lot. Les AddRangeAsync ci-dessous ne
-            // font que suivre les nouvelles entités (aucun accès base individuel) ; c'est l'unique
-            // appel à SaveChangesAsync qui déclenche la persistance de tout le lot en une seule
-            // transaction, garantissant qu'un échec n'insère jamais un artiste/album orphelin sans
-            // ses morceaux/écoutes correspondants.
+            // Un seul SaveChangesAsync pour tout le lot : garantit qu'un échec n'insère jamais un
+            // artiste/album orphelin sans ses morceaux/écoutes correspondants.
             if (newArtists.Count > 0)
             {
                 await _artistRepository.AddRangeAsync(newArtists.Values, ct);
@@ -193,13 +183,10 @@ namespace DeezerStats.Application.UseCases.Import
             {
                 await _unitOfWork.SaveChangesAsync(ct);
 
-                // Étape 7 : maintenant que le lot est persisté avec succès, on indexe les nouvelles
-                // entités dans le moteur de recherche en un seul appel groupé (voir
-                // ISearchEnginePort.IndexDocumentsAsync) plutôt qu'un appel par entité. L'enrichissement
-                // Deezer (cover, durée, date de sortie) n'est plus déclenché ici : il se fait à la
-                // demande, lors de la consultation du détail d'un album ou d'un artiste, pour ne
-                // jamais bloquer la réponse HTTP de POST /imports sur des milliers d'appels réseau
-                // séquentiels (voir contrat OpenAPI de /imports).
+                // L'enrichissement Deezer (cover, durée, date de sortie) n'est volontairement pas
+                // déclenché ici : il se fait à la demande, lors de la consultation du détail d'un
+                // album/artiste, pour ne jamais bloquer POST /imports sur des milliers d'appels
+                // réseau séquentiels.
                 await IndexNewCatalogEntitiesAsync(existingArtists, newArtists.Values, newAlbums.Values, newTracks, ct);
             }
 
@@ -212,11 +199,9 @@ namespace DeezerStats.Application.UseCases.Import
 
         /// <summary>
         /// Sépare la colonne artiste brute de l'export Deezer (ex. "The Weeknd, Future") en artiste
-        /// principal ("The Weeknd") et featurings ("Future") : Deezer liste systématiquement tous les
-        /// artistes crédités sur un morceau dans cette seule colonne, séparés par ", ", sans distinguer
-        /// l'artiste principal. Sans ce découpage, chaque combinaison de featuring produirait un
-        /// Artist/Album distinct pour un même album (voir l'incident "Hurry Up Tomorrow" fragmenté en
-        /// 7 entités), au lieu d'être regroupée sous l'artiste principal.
+        /// principal et featurings : sans ce découpage, chaque combinaison de featuring produit un
+        /// Artist/Album distinct pour un même album (incident vécu : "Hurry Up Tomorrow" fragmenté
+        /// en 7 entités).
         /// </summary>
         private static (string PrimaryArtistName, string? FeaturedArtists) ParseArtistCredit(string rawArtistName)
         {
@@ -280,12 +265,8 @@ namespace DeezerStats.Application.UseCases.Import
             return album;
         }
 
-        /// <summary>
-        /// Construit les documents de recherche des entités nouvellement créées par cet import et
-        /// les indexe en un seul appel groupé. Une panne du moteur de recherche est journalisée puis
-        /// absorbée : elle ne doit jamais faire échouer l'import lui-même (Postgres, déjà persisté à
-        /// ce stade, reste la source de vérité).
-        /// </summary>
+        // Une panne du moteur de recherche est journalisée puis absorbée : elle ne doit jamais faire
+        // échouer l'import (Postgres, déjà persisté à ce stade, reste la source de vérité).
         private async Task IndexNewCatalogEntitiesAsync(
             IReadOnlyList<Artist> existingArtists,
             IReadOnlyCollection<Artist> newArtists,

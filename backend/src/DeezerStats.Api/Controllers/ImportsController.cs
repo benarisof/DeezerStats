@@ -14,12 +14,6 @@ namespace DeezerStats.Api.Controllers;
 [Produces("application/json")]
 public class ImportsController(IImportListeningHistoryUseCase importListeningHistoryUseCase) : ApiControllerBase
 {
-    /// <summary>
-    /// Charge le fichier Excel mensuel d'historique d'écoute de l'utilisateur authentifié.
-    /// </summary>
-    /// <param name="file">Le classeur Excel (.xlsx) à importer, envoyé en multipart/form-data.</param>
-    /// <param name="cancellationToken">Jeton d'annulation propagé jusqu'à la base de données.</param>
-    /// <returns>Le rapport d'import (lignes importées, ignorées car déjà présentes, en erreur).</returns>
     [HttpPost]
     [ProducesResponseType(typeof(ImportReport), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -48,16 +48,12 @@ namespace DeezerStats.Application.UseCases.Users
                 passwordHash,
                 command.DisplayName);
 
-            // AddAsync/IssueAsync ne font que suivre les nouvelles entités (aucun accès base, voir
-            // IUserRepository.AddAsync et AuthTokenIssuer) : la création de l'utilisateur et
-            // l'émission du refresh token sont donc persistées ensemble par le SEUL SaveChangesAsync
-            // ci-dessous, atomiquement -- plus besoin de transaction explicite pour éviter qu'un
-            // utilisateur créé sans session ne puisse plus jamais se réinscrire (email déjà pris) ni
-            // obtenir de tokens.
+            // AddAsync/IssueAsync ne font que suivre les nouvelles entités : création de l'utilisateur
+            // et émission du refresh token sont persistées ensemble par le seul SaveChangesAsync
+            // ci-dessous, atomiquement.
             await _userRepository.AddAsync(user, ct);
 
-            // Connexion automatique après inscription (voir schéma AuthTokens en réponse de POST
-            // /auth/register dans le contrat OpenAPI).
+            // Connexion automatique après inscription.
             AuthTokensDto tokens = await _authTokenIssuer.IssueAsync(user, ct);
 
             try
@@ -67,11 +63,9 @@ namespace DeezerStats.Application.UseCases.Users
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 // Filet de sécurité contre une course : la vérification "existingUser is not null"
-                // ci-dessus n'est pas atomique avec cette écriture, deux inscriptions concurrentes
-                // avec le même email peuvent donc toutes les deux la passer. Seule la contrainte
-                // d'unicité en base (voir UserConfiguration.HasAlternateKey) peut trancher avec
-                // certitude ; on ne retraduit en ConflictException QUE si un autre utilisateur porte
-                // désormais cet email, pour ne pas masquer une panne de base sans rapport sous un 409.
+                // ci-dessus n'est pas atomique avec cette écriture. On ne retraduit en ConflictException
+                // QUE si un autre utilisateur porte désormais cet email, pour ne pas masquer une panne
+                // de base sans rapport sous un 409.
                 User? conflictingUser = await _userRepository.GetByEmailAsync(email, ct);
 
                 if (conflictingUser is not null && conflictingUser.Id != user.Id)

@@ -25,7 +25,6 @@ namespace DeezerStats.Application.UseCases.Albums
 
         public async Task<Album?> ExecuteAsync(GetOrEnrichAlbumRequest request, CancellationToken ct = default)
         {
-            // 1. Chercher dans PostgreSQL via le repository
             Album? album = await _albumRepository.GetByIdAsync(request.AlbumId, ct);
 
             if (album is null)
@@ -33,14 +32,12 @@ namespace DeezerStats.Application.UseCases.Albums
                 return null;
             }
 
-            // 2. Si l'album est déjà enrichi, on évite un appel réseau externe
             if (album.IsEnriched)
             {
                 return album;
             }
 
-            // 3. L'API Deezer se recherche par titre d'album + nom d'artiste (voir
-            // IDeezerEnrichmentPort.FetchAlbumMetadataAsync) : il faut donc résoudre l'artiste.
+            // L'API Deezer se recherche par titre d'album + nom d'artiste, il faut donc résoudre l'artiste.
             Artist? artist = await _artistRepository.GetByIdAsync(album.ArtistId, ct);
 
             if (artist is null)
@@ -50,17 +47,11 @@ namespace DeezerStats.Application.UseCases.Albums
                 return album;
             }
 
-            // 4. Fallback : Appel à l'API externe Deezer
             DeezerAlbumMetadata? deezerMetadata = await _deezerPort.FetchAlbumMetadataAsync(album.Title, artist.Name, ct);
 
             if (deezerMetadata is not null)
             {
-                // 5. Mutation de l'agrégat dans le domaine
                 album.Enrich(deezerMetadata.CoverUrl, deezerMetadata.ReleaseDate, deezerMetadata.Duration);
-
-                // 6. Persistance des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
-                // changement, voir IAlbumRepository.UpdateAsync -- SaveChangesAsync déclenche
-                // l'écriture réelle).
                 await _albumRepository.UpdateAsync(album, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
             }

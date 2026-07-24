@@ -32,30 +32,17 @@ namespace DeezerStats.Domain.Aggregates.TrackAggregate
 
         public Guid AlbumId { get; private set; }
 
-        /// <summary>
-        /// Obtient artistes en featuring sur ce morceau, tels qu'importés (ex. "Future" pour une ligne dont
-        /// la colonne artiste valait "The Weeknd, Future"), stockés en texte libre pour l'affichage
-        /// uniquement. Ne participe à aucune règle métier ni à aucun rattachement Artist/Album --
-        /// seul le premier nom de la colonne artiste (voir ImportListeningHistoryUseCase) détermine
-        /// l'artiste et l'album du morceau, afin d'éviter qu'un même album se retrouve fragmenté en
-        /// plusieurs entités selon les featurings de chaque morceau.
-        /// </summary>
+        // Stocké en texte libre pour l'affichage uniquement (ex. "Future" pour "The Weeknd, Future") :
+        // ne participe à aucun rattachement Artist/Album, seul le premier nom détermine ceux-ci (voir
+        // ImportListeningHistoryUseCase), pour éviter qu'un même album se fragmente selon les featurings.
         public string? FeaturedArtists { get; private set; }
 
         public Duration? Duration { get; private set; }
 
         public string? CoverUrl { get; private set; }
 
-        /// <summary>
-        /// Obtient une valeur indiquant si règle métier : Indique si le morceau possède déjà toutes les données enrichies par Deezer.
-        /// </summary>
         public bool IsEnriched => Duration != null && !string.IsNullOrWhiteSpace(CoverUrl);
 
-        /// <summary>
-        /// Méthode d'enrichissement appelée lors du retour de l'API Deezer.
-        /// </summary>
-        /// <param name="duration">La durée du morceau récupérée depuis Deezer.</param>
-        /// <param name="coverUrl">L'URL de la pochette du morceau récupérée depuis Deezer.</param>
         public void Enrich(Duration duration, string? coverUrl)
         {
             Duration = duration ?? throw new ArgumentNullException(nameof(duration));

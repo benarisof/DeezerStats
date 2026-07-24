@@ -15,12 +15,7 @@ public class SearchController(
     IGetSearchSuggestionsUseCase getSearchSuggestionsUseCase,
     ISearchCatalogUseCase searchCatalogUseCase) : ApiControllerBase
 {
-    /// <summary>
-    /// Suggestions d'autocomplétion (déclenchées côté front à partir de 4 caractères).
-    /// </summary>
-    /// <param name="q">Termes recherchés (au moins 4 caractères).</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>La liste des suggestions (albums / artistes / morceaux).</returns>
+    // Déclenchées côté front à partir de 4 caractères.
     [HttpGet("suggestions")]
     [ProducesResponseType(typeof(IEnumerable<SearchSuggestionDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -32,14 +27,6 @@ public class SearchController(
         return Ok(suggestions);
     }
 
-    /// <summary>
-    /// Recherche complète dans le catalogue (clic sur une suggestion ou touche Entrée), paginée.
-    /// </summary>
-    /// <param name="q">Termes recherchés.</param>
-    /// <param name="page">Numéro de page (défaut 1).</param>
-    /// <param name="pageSize">Taille de page (défaut 20).</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>La page de résultats demandée.</returns>
     [HttpGet]
     [ProducesResponseType(typeof(SearchResultsPageDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

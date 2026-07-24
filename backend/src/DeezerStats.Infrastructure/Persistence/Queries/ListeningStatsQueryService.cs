@@ -11,36 +11,20 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
 {
     /// <summary>
     /// Implémentation EF Core du port de lecture des statistiques d'écoute (voir
-    /// <see cref="IListeningStatsQueryPort"/>). Regroupe les jointures ListeningEvent -> Track ->
-    /// Album/Artist et les agrégations (COUNT, GROUP BY) nécessaires aux endpoints de consultation
-    /// (Phase 9).
+    /// <see cref="IListeningStatsQueryPort"/>).
     ///
-    /// Point d'attention EF Core : Duration est un Value Object converti vers un int (secondes) via
-    /// DomainValueConverters. EF Core sait traduire l'accès à la propriété convertie elle-même (ex.
-    /// "le.ListeningDuration") en SQL, mais PAS un accès membre supplémentaire dessus (ex.
-    /// "le.ListeningDuration.TotalSeconds") : ce type d'accès ne peut être traduit en SQL. Les
-    /// sommes de durée (voir BuildTrackListeningStatsAsync) sont donc calculées en mémoire, après
-    /// matérialisation des ListeningDuration bruts -- volumétrie bornée par le nombre de morceaux
-    /// d'un seul album/artiste, donc sans enjeu de performance.
-    ///
-    /// Les classements (tops albums/artistes/morceaux), en revanche, sont désormais groupés/comptés/
-    /// triés/plafonnés côté SQL (GROUP BY + COUNT + ORDER BY + LIMIT), et non plus en mémoire.
-    /// L'échec de traduction initialement rencontré ("The LINQ expression ... could not be
-    /// translated") ne venait pas du GROUP BY lui-même, mais de la projection finale vers un type
-    /// applicatif nommé (ex. "new AlbumSummary(...)") : EF Core sait traduire un GROUP BY projeté
-    /// vers un type ANONYME (voir Build*SummariesAsync ci-dessous), le mapping vers le record nommé
-    /// se faisant ensuite en mémoire sur un résultat déjà réduit au strict nécessaire (Take). Vérifié
-    /// contre la vraie base (pas seulement le provider EF Core InMemory, qui ne reproduit pas cette
-    /// limite de traduction) avant ce changement.
+    /// Deux pièges EF Core à connaître avant de modifier ce fichier : (1) Duration est converti en
+    /// int via DomainValueConverters -- EF Core traduit "le.ListeningDuration" en SQL mais pas un
+    /// accès membre dessus ("le.ListeningDuration.TotalSeconds"), d'où les sommes de durée calculées
+    /// en mémoire (BuildTrackListeningStatsAsync). (2) un GROUP BY se traduit en SQL seulement si la
+    /// projection finale reste anonyme -- projeter directement vers un record nommé (ex.
+    /// "new AlbumSummary(...)") fait échouer la traduction ("The LINQ expression ... could not be
+    /// translated") ; le mapping vers le record se fait donc en mémoire, après le GROUP BY/Take.
     /// </summary>
     public class ListeningStatsQueryService(ApplicationDbContext context) : IListeningStatsQueryPort
     {
-        /// <summary>
-        /// Nombre d'éléments par catégorie affichés sur la page d'accueil (voir HomeStatsResponse) :
-        /// volontairement demandé au plus près du besoin (10) plutôt que le plafond général des tops
-        /// (StatsRules.MaxRankedResults, 100), pour que la requête SQL sous-jacente (GROUP BY + LIMIT)
-        /// n'agrège que ce qui sera effectivement affiché.
-        /// </summary>
+        // Plafond volontairement plus bas que StatsRules.MaxRankedResults (100) : la page d'accueil
+        // n'affiche que 10 éléments par catégorie.
         private const int _homeStatsItemCount = 10;
 
         private readonly ApplicationDbContext _context = context;
@@ -49,11 +33,8 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
 
-            // Une seule requête SQL par catégorie (contre une matérialisation complète de l'historique
-            // de l'utilisateur x3 auparavant) : chacune reste néanmoins séquentielle, le DbContext
-            // n'étant pas thread-safe pour des requêtes concurrentes sur la même instance (voir
-            // CatalogEnrichmentCoordinator pour le pattern utilisé quand une vraie parallélisation est
-            // nécessaire, avec un DbContext isolé par tâche).
+            // Séquentiel (pas Task.WhenAll) : le DbContext n'est pas thread-safe pour des requêtes
+            // concurrentes sur la même instance.
             List<AlbumSummary> topAlbums = await BuildAlbumSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
             List<ArtistSummary> topArtists = await BuildArtistSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
             List<TrackSummary> topTracks = await BuildTrackSummariesAsync(userId, fromDate, toDate, _homeStatsItemCount, ct);
@@ -86,14 +67,9 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
         {
             (DateTime? fromDate, DateTime? toDate) = ToInclusiveBounds(dateRange);
 
-            // Remarque : les bornes sont nommées fromDate/toDate (et non from/to) car "from" est un
-            // mot-clé contextuel de la syntaxe de requête LINQ ci-dessous -- l'utiliser comme nom de
-            // variable référencé À L'INTÉRIEUR d'une expression "from...where...select" fait échouer
-            // la compilation (CS1525 "Invalid expression term").
-            //
-            // Contrairement aux tops (voir BuildTrackSummariesAsync et consorts), l'historique ne
-            // fait aucun GROUP BY : une simple jointure + tri est fiablement traduite en SQL, donc
-            // la pagination reste faite côté base (Take/Skip/CountAsync).
+            // Nommées fromDate/toDate et non from/to : "from" est un mot-clé contextuel de la syntaxe
+            // de requête LINQ ci-dessous, l'utiliser comme nom de variable ferait échouer la
+            // compilation (CS1525).
             IQueryable<HistoryEntry> query =
                 from le in _context.ListeningEvents
                 where le.UserId == userId
@@ -183,12 +159,9 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
                 })
                 .OrderByDescending(item => item.PlayCount)];
 
-            // distinctAlbumsCount/distinctTracksCount reflètent uniquement ce que CET utilisateur a
-            // réellement écouté (playCount > 0) sur la plage demandée : le catalogue (Track/Album/
-            // Artist) est global et partagé entre utilisateurs (dédupliqué par nom), il ne reflète
-            // pas "tout ce que l'artiste a sorti" mais "ce qui a été importé par un import quelconque".
-            // Seul le nombre d'écoutes de l'utilisateur courant a un sens en tant que statistique
-            // personnelle.
+            // distinctAlbumsCount/distinctTracksCount ne comptent que ce que CET utilisateur a
+            // réellement écouté (playCount > 0) : le catalogue est global et partagé entre
+            // utilisateurs, il ne reflète pas la discographie complète de l'artiste.
             HashSet<Guid> playedTrackIds = [.. statsByTrack.Where(kvp => kvp.Value.PlayCount > 0).Select(kvp => kvp.Key)];
             var distinctTracksCount = playedTrackIds.Count;
             var distinctAlbumsCount = tracksWithAlbum
@@ -211,32 +184,18 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
                 trackItems);
         }
 
-        /// <summary>
-        /// Convertit la plage de dates métier (DateOnly, bornes incluses) en bornes DateTime
-        /// utilisables directement dans une comparaison avec ListeningEvent.ListenedAt : le début
-        /// de la journée pour "from", la fin de la journée (23:59:59.9999999) pour "to" afin
-        /// d'inclure toute la journée de fin, conformément à la sémantique "incluse" du contrat OpenAPI.
-        ///
-        /// DateOnly.ToDateTime produit systématiquement un DateTimeKind.Unspecified, alors que
-        /// ListenedAt est mappée en "timestamp with time zone" (voir ApplicationDbContext) : Npgsql
-        /// refuse d'écrire un DateTime Unspecified dans ce type de colonne ("Cannot write DateTime
-        /// with Kind=Unspecified [...], only UTC is supported"), ce qui faisait échouer en 500 tout
-        /// appel aux endpoints de consultation dès qu'un filtre from/to était fourni -- même bug que
-        /// celui déjà rencontré et corrigé côté import (voir ClosedXmlExcelParser).
-        /// </summary>
+        // "to" va jusqu'à 23:59:59.9999999 pour inclure toute la journée de fin (sémantique "bornes
+        // incluses" du contrat OpenAPI).
         private static (DateTime? From, DateTime? To) ToInclusiveBounds(DateRange dateRange) =>
             (ToUtc(dateRange.From, TimeOnly.MinValue), ToUtc(dateRange.To, TimeOnly.MaxValue));
 
+        // DateOnly.ToDateTime produit un DateTimeKind.Unspecified ; Npgsql refuse d'écrire ce Kind
+        // dans une colonne "timestamp with time zone" (ListenedAt), d'où la conversion explicite en UTC.
         private static DateTime? ToUtc(DateOnly? date, TimeOnly time) =>
             date.HasValue ? DateTime.SpecifyKind(date.Value.ToDateTime(time), DateTimeKind.Utc) : null;
 
-        /// <summary>
-        /// Plafonne un classement déjà trié (voir StatsRules.MaxRankedResults) puis en extrait la
-        /// page demandée. Purement en mémoire, mais sur un résultat déjà plafonné côté SQL par les
-        /// méthodes Build*SummariesAsync (le ".Take(StatsRules.MaxRankedResults)" ci-dessous ne fait
-        /// donc jamais rien en pratique) : conservé comme garde-fou défensif plutôt que retiré, au cas
-        /// où un appelant futur oublierait de plafonner sa requête en amont.
-        /// </summary>
+        // Le plafonnage ci-dessous est redondant avec celui déjà fait côté SQL par les méthodes
+        // Build*SummariesAsync ; conservé comme garde-fou si un futur appelant l'omettait en amont.
         private static PagedResult<T> ToPagedResult<T>(IReadOnlyList<T> orderedItems, int page, int pageSize)
         {
             IReadOnlyList<T> capped = orderedItems.Count > StatsRules.MaxRankedResults
@@ -247,12 +206,6 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
             return new PagedResult<T>(items, page, pageSize, capped.Count);
         }
 
-        /// <summary>
-        /// Construit le classement des morceaux (avec nombre d'écoutes) pour un utilisateur donné,
-        /// trié par nombre d'écoutes décroissant et plafonné à <paramref name="take"/> résultats --
-        /// jointure, regroupement, comptage, tri ET plafonnage sont tous traduits en SQL (voir la
-        /// remarque en tête de fichier), Postgres ne renvoyant jamais plus de lignes que nécessaire.
-        /// </summary>
         private async Task<List<TrackSummary>> BuildTrackSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
@@ -280,11 +233,6 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
             return [.. rows.Select(r => new TrackSummary(r.Id, r.Title, r.ArtistName, r.AlbumTitle, r.CoverUrl, r.PlayCount))];
         }
 
-        /// <summary>
-        /// Construit le classement des albums (avec nombre d'écoutes cumulé sur tous leurs morceaux)
-        /// pour un utilisateur donné, plafonné à <paramref name="take"/> résultats. Voir la remarque
-        /// de <see cref="BuildTrackSummariesAsync"/>.
-        /// </summary>
         private async Task<List<AlbumSummary>> BuildAlbumSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
@@ -311,11 +259,6 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
             return [.. rows.Select(r => new AlbumSummary(r.Id, r.Title, r.ArtistName, r.CoverUrl, r.PlayCount))];
         }
 
-        /// <summary>
-        /// Construit le classement des artistes (avec nombre d'écoutes cumulé sur tous leurs
-        /// morceaux, tous albums confondus) pour un utilisateur donné, plafonné à
-        /// <paramref name="take"/> résultats. Voir la remarque de <see cref="BuildTrackSummariesAsync"/>.
-        /// </summary>
         private async Task<List<ArtistSummary>> BuildArtistSummariesAsync(Guid userId, DateTime? fromDate, DateTime? toDate, int take, CancellationToken ct)
         {
             var rows = await (
@@ -340,13 +283,6 @@ namespace DeezerStats.Infrastructure.Persistence.Queries
             return [.. rows.Select(r => new ArtistSummary(r.Id, r.Name, r.CoverUrl, r.PlayCount))];
         }
 
-        /// <summary>
-        /// Nombre d'écoutes et durée totale écoutée (en secondes) par morceau, pour un utilisateur
-        /// et un ensemble de morceaux donnés (utilisé par les pages item album/artiste). La durée
-        /// est sommée en mémoire après matérialisation (voir la note en tête de fichier sur
-        /// ListeningDuration.TotalSeconds), la sélection de "le.ListeningDuration" seule (sans accès
-        /// membre) restant traduisible par EF Core.
-        /// </summary>
         private async Task<Dictionary<Guid, (int PlayCount, int TotalSeconds)>> BuildTrackListeningStatsAsync(
             Guid userId, IReadOnlyCollection<Guid> trackIds, DateTime? fromDate, DateTime? toDate, CancellationToken ct)
         {

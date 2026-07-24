@@ -16,7 +16,6 @@ namespace DeezerStats.Application.UseCases.Tracks
 
         public async Task<Track?> ExecuteAsync(GetOrEnrichTrackRequest request, CancellationToken ct = default)
         {
-            // 1. Chercher dans Postgresql via le repository
             Track? track = await _trackRepository.GetByIsrcAsync(request.Isrc, ct);
 
             return track is null ? null : await EnrichIfNeededAsync(track, ct);
@@ -31,23 +30,16 @@ namespace DeezerStats.Application.UseCases.Tracks
 
         private async Task<Track> EnrichIfNeededAsync(Track track, CancellationToken ct)
         {
-            // Si le morceau est déjà enrichi, on évite un appel réseau externe
             if (track.IsEnriched)
             {
                 return track;
             }
 
-            // Fallback : Appel à l'API externe Deezer
             DeezerTrackMetadata? deezerMetadata = await _deezerPort.FetchTrackMetadataAsync(track.Isrc, ct);
 
             if (deezerMetadata is not null)
             {
-                // Mutation de l'agrégat dans le domaine
                 track.Enrich(deezerMetadata.Duration, deezerMetadata.CoverUrl);
-
-                // Persistence des métadonnées dans PostgreSQL (UpdateAsync ne fait que suivre le
-                // changement, voir ITrackRepository.UpdateAsync -- SaveChangesAsync déclenche
-                // l'écriture réelle).
                 await _trackRepository.UpdateAsync(track, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
             }

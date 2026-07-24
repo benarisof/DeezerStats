@@ -16,16 +16,7 @@ public class AlbumsController(
     IGetTopAlbumsUseCase getTopAlbumsUseCase,
     IGetAlbumDetailUseCase getAlbumDetailUseCase) : ApiControllerBase
 {
-    /// <summary>
-    /// Classement paginé des albums les plus écoutés (plafonné à 100 résultats, voir
-    /// StatsRules.MaxRankedResults).
-    /// </summary>
-    /// <param name="from">Début de la plage de dates (incluse). Absent = depuis le début.</param>
-    /// <param name="to">Fin de la plage de dates (incluse). Absent = jusqu'à aujourd'hui.</param>
-    /// <param name="page">Numéro de page (défaut 1).</param>
-    /// <param name="pageSize">Taille de page, 1 à 100 (défaut 20).</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>La page demandée du classement des albums.</returns>
+    // Plafonné à 100 résultats, voir StatsRules.MaxRankedResults.
     [HttpGet("top")]
     [ProducesResponseType(typeof(PagedResult<AlbumSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -46,15 +37,6 @@ public class AlbumsController(
         return Ok(result);
     }
 
-    /// <summary>
-    /// Détail d'un album (page item) : agrégats d'écoute de l'utilisateur authentifié et morceaux
-    /// triés par nombre d'écoutes décroissant.
-    /// </summary>
-    /// <param name="albumId">Identifiant de l'album.</param>
-    /// <param name="from">Début de la plage de dates (incluse). Absent = depuis le début.</param>
-    /// <param name="to">Fin de la plage de dates (incluse). Absent = jusqu'à aujourd'hui.</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>Le détail de l'album, ou 404 s'il n'existe pas.</returns>
     [HttpGet("{albumId:guid}")]
     [ProducesResponseType(typeof(AlbumDetail), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

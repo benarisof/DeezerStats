@@ -20,12 +20,6 @@ public class AuthController(
     ILogoutUserUseCase logoutUserUseCase,
     IGetCurrentUserUseCase getCurrentUserUseCase) : ApiControllerBase
 {
-    /// <summary>
-    /// Inscrit un nouvel utilisateur et le connecte automatiquement.
-    /// </summary>
-    /// <param name="command">Les données d'inscription de l'utilisateur.</param>
-    /// <param name="cancellationToken">Jeton d'annulation propagé jusqu'à la base de données.</param>
-    /// <returns>Le couple (access token, refresh token) de la session nouvellement créée.</returns>
     [HttpPost("register")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthTokensDto), StatusCodes.Status201Created)]
@@ -35,18 +29,10 @@ public class AuthController(
         [FromBody] RegisterUserCommand command,
         CancellationToken cancellationToken)
     {
-        // L'appel au Use Case déclenche en interne la validation FluentValidation
-        // et lève une DomainException si l'email existe déjà.
         AuthTokensDto tokens = await registerUserUseCase.ExecuteAsync(command, cancellationToken);
         return StatusCode(StatusCodes.Status201Created, tokens);
     }
 
-    /// <summary>
-    /// Authentifie un utilisateur et génère un nouveau couple de tokens.
-    /// </summary>
-    /// <param name="command">Les identifiants de l'utilisateur.</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>Le couple (access token, refresh token).</returns>
     [HttpPost("login")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthTokensDto), StatusCodes.Status200OK)]
@@ -60,13 +46,7 @@ public class AuthController(
         return Ok(tokens);
     }
 
-    /// <summary>
-    /// Échange un refresh token valide contre un nouveau couple de tokens (rotation : l'ancien
-    /// refresh token est révoqué).
-    /// </summary>
-    /// <param name="command">Le refresh token courant.</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>Le nouveau couple (access token, refresh token).</returns>
+    // Rotation : l'ancien refresh token est révoqué.
     [HttpPost("refresh")]
     [AllowAnonymous]
     [ProducesResponseType(typeof(AuthTokensDto), StatusCodes.Status200OK)]
@@ -79,12 +59,6 @@ public class AuthController(
         return Ok(tokens);
     }
 
-    /// <summary>
-    /// Révoque le refresh token courant de l'utilisateur authentifié.
-    /// </summary>
-    /// <param name="command">Le refresh token à révoquer.</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>204 No Content, systématiquement.</returns>
     [HttpPost("logout")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -97,11 +71,7 @@ public class AuthController(
         return NoContent();
     }
 
-    /// <summary>
-    /// Profil de l'utilisateur authentifié (restauration de session au chargement du front).
-    /// </summary>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>Le profil de l'utilisateur courant.</returns>
+    // Restauration de session au chargement du front.
     [HttpGet("me")]
     [ProducesResponseType(typeof(UserProfileDto), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]

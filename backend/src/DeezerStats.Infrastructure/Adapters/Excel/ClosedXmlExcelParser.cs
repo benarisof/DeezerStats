@@ -31,19 +31,16 @@ namespace DeezerStats.Infrastructure.Adapters.Excel
 
             using XLWorkbook workbook = OpenWorkbook(fileStream);
 
-            // 1. Recherche de la feuille dont le nom contient "listeningHistory" (insensible à la casse)
             IXLWorksheet? worksheet = workbook.Worksheets
                 .FirstOrDefault(w => w.Name.Contains(_targetSheetKeyword, StringComparison.OrdinalIgnoreCase));
 
-            // 2. Repli : Si aucune feuille ne correspond, on prend la première par défaut (ou on lève une exception)
             worksheet ??= workbook.Worksheets.FirstOrDefault()
                 ?? throw new DomainException("Le fichier Excel ne contient aucune feuille de calcul.");
 
-            IEnumerable<IXLRow> rows = worksheet.RowsUsed().Skip(1); // Sauter la ligne d'en-tête
+            IEnumerable<IXLRow> rows = worksheet.RowsUsed().Skip(1); // ligne d'en-tête
 
             foreach (IXLRow row in rows)
             {
-                // Vérification que la ligne n'est pas vide
                 if (row.IsEmpty())
                 {
                     continue;

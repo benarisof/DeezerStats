@@ -37,15 +37,9 @@ public class MeilisearchAdapter(
 
     private readonly string _indexName = options.Value.IndexName;
 
-    /// <summary>
-    /// Dégrade silencieusement sur une panne Meilisearch (liste vide) plutôt que de propager
-    /// l'erreur : contrairement à <see cref="SearchAsync"/>, cet appel se déclenche à chaque frappe
-    /// (autocomplétion, voir SearchBox côté frontend) -- best-effort par nature, une indisponibilité
-    /// momentanée ne doit jamais interrompre la saisie de l'utilisateur avec une erreur bruyante.
-    /// </summary>
-    /// <param name="query">Termes recherchés (au moins 4 caractères, voir GetSearchSuggestionsUseCase).</param>
-    /// <param name="cancellationToken">Jeton d'annulation pour la requête asynchrone.</param>
-    /// <returns>Les suggestions correspondantes, ou une liste vide si Meilisearch est indisponible.</returns>
+    // Dégrade silencieusement sur une panne Meilisearch (liste vide) plutôt que de propager l'erreur,
+    // contrairement à SearchAsync : cet appel se déclenche à chaque frappe (autocomplétion),
+    // une indisponibilité momentanée ne doit jamais interrompre la saisie avec une erreur bruyante.
     public async Task<IEnumerable<SearchSuggestionDto>> GetSuggestionsAsync(string query, CancellationToken cancellationToken)
     {
         try
@@ -68,19 +62,9 @@ public class MeilisearchAdapter(
         }
     }
 
-    /// <summary>
-    /// Propage la panne Meilisearch (500, via ExceptionHandlingMiddleware) plutôt que de la masquer
-    /// en page de résultats vide : contrairement à <see cref="GetSuggestionsAsync"/>, cet appel
-    /// répond à une action explicite de l'utilisateur (touche Entrée ou clic sur une suggestion) --
-    /// renvoyer silencieusement "0 résultat" laisserait croire à tort que la recherche n'a
-    /// légitimement rien trouvé, alors que c'est le moteur de recherche qui est indisponible.
-    /// </summary>
-    /// <param name="query">Termes recherchés.</param>
-    /// <param name="page">Numéro de page.</param>
-    /// <param name="pageSize">Taille de page.</param>
-    /// <param name="cancellationToken">Jeton d'annulation pour la requête asynchrone.</param>
-    /// <returns>La page de résultats demandée.</returns>
-    /// <exception cref="MeilisearchApiError">Si Meilisearch échoue à répondre (voir résumé ci-dessus).</exception>
+    // Propage la panne Meilisearch (500) plutôt que de la masquer en page de résultats vide :
+    // contrairement à GetSuggestionsAsync, cet appel répond à une action explicite de l'utilisateur,
+    // renvoyer silencieusement "0 résultat" laisserait croire à tort que la recherche n'a rien trouvé.
     public async Task<SearchResultsPageDto> SearchAsync(string query, int page, int pageSize, CancellationToken cancellationToken)
     {
         try

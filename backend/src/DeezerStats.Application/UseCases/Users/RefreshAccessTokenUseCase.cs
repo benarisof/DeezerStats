@@ -10,11 +10,9 @@ using FluentValidation;
 namespace DeezerStats.Application.UseCases.Users
 {
     /// <summary>
-    /// Échange un refresh token valide contre un nouveau couple (access token, refresh token), avec
-    /// rotation : l'ancien refresh token est révoqué dès qu'il est utilisé (voir RefreshToken.Revoke)
-    /// et ne peut donc plus resservir. Si un refresh token déjà révoqué est présenté, c'est le signe
-    /// d'une possible réutilisation frauduleuse (vol de token) : par précaution, tous les refresh
-    /// tokens actifs de l'utilisateur sont révoqués, forçant une reconnexion complète.
+    /// Échange un refresh token valide contre un nouveau couple, avec rotation : l'ancien est
+    /// révoqué dès qu'il est utilisé. Si un token déjà révoqué est présenté (signe possible d'un vol
+    /// de token), tous les refresh tokens actifs de l'utilisateur sont révoqués par précaution.
     /// </summary>
     public class RefreshAccessTokenUseCase(
         IRefreshTokenRepository refreshTokenRepository,
@@ -49,9 +47,8 @@ namespace DeezerStats.Application.UseCases.Users
             if (existingToken.IsRevoked)
             {
                 // Réutilisation d'un token déjà révoqué : réponse défensive, on invalide toute la
-                // session de l'utilisateur plutôt que ce seul token. RevokeAllActiveForUserAsync ne
-                // committe plus elle-même (voir IRefreshTokenRepository) : on committe explicitement
-                // avant de lever l'exception, pour que la révocation survive malgré tout.
+                // session plutôt que ce seul token. RevokeAllActiveForUserAsync ne committe pas
+                // elle-même, d'où le SaveChangesAsync explicite avant de lever l'exception.
                 await _refreshTokenRepository.RevokeAllActiveForUserAsync(existingToken.UserId, ct);
                 await _unitOfWork.SaveChangesAsync(ct);
                 throw new AuthenticationFailedException("Refresh token invalide ou expiré.");
@@ -70,10 +67,8 @@ namespace DeezerStats.Application.UseCases.Users
             existingToken.Revoke();
             await _refreshTokenRepository.UpdateAsync(existingToken, ct);
 
-            // La révocation de l'ancien token et l'émission du nouveau sont désormais persistées
-            // ensemble par un seul SaveChangesAsync (AuthTokenIssuer/UpdateAsync ne committent plus
-            // individuellement, voir leurs commentaires respectifs) : la rotation est donc atomique,
-            // sans nécessiter de transaction explicite.
+            // Révocation de l'ancien token + émission du nouveau, persistées ensemble par ce seul
+            // SaveChangesAsync : la rotation est atomique sans transaction explicite.
             await _unitOfWork.SaveChangesAsync(ct);
 
             return newTokens;

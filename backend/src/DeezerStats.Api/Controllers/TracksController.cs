@@ -13,16 +13,7 @@ namespace DeezerStats.Api.Controllers;
 [Produces("application/json")]
 public class TracksController(IGetTopTracksUseCase getTopTracksUseCase) : ApiControllerBase
 {
-    /// <summary>
-    /// Classement paginé des morceaux les plus écoutés (plafonné à 100 résultats, voir
-    /// StatsRules.MaxRankedResults).
-    /// </summary>
-    /// <param name="from">Début de la plage de dates (incluse). Absent = depuis le début.</param>
-    /// <param name="to">Fin de la plage de dates (incluse). Absent = jusqu'à aujourd'hui.</param>
-    /// <param name="page">Numéro de page (défaut 1).</param>
-    /// <param name="pageSize">Taille de page, 1 à 100 (défaut 20).</param>
-    /// <param name="cancellationToken">Jeton d'annulation.</param>
-    /// <returns>La page demandée du classement des morceaux.</returns>
+    // Plafonné à 100 résultats, voir StatsRules.MaxRankedResults.
     [HttpGet("top")]
     [ProducesResponseType(typeof(PagedResult<TrackSummary>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

@@ -45,27 +45,18 @@ public partial class MeilisearchInitializerService(
     /// <inheritdoc/>
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 
-    /// <summary>
-    /// Enregistre le début de la vérification de l'index.
-    /// </summary>
     [LoggerMessage(
         EventId = 1,
         Level = LogLevel.Information,
         Message = "Vérification et configuration de l'index Meilisearch '{IndexName}'...")]
     private static partial void LogCheckingIndex(ILogger logger, string indexName);
 
-    /// <summary>
-    /// Enregistre le succès de la configuration de l'index.
-    /// </summary>
     [LoggerMessage(
         EventId = 2,
         Level = LogLevel.Information,
         Message = "Configuration de l'index Meilisearch terminée avec succès.")]
     private static partial void LogConfigurationSuccess(ILogger logger);
 
-    /// <summary>
-    /// Enregistre l'échec de la configuration de l'index.
-    /// </summary>
     [LoggerMessage(
         EventId = 3,
         Level = LogLevel.Critical,
